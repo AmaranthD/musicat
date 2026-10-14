@@ -12,6 +12,7 @@ const unrecognizedList = document.getElementById("unrecognized-list");
 const progress = document.getElementById("progress");
 const progressBar = document.getElementById("progress-bar");
 const progressLabel = document.getElementById("progress-label");
+const toast = document.getElementById("toast");
 const playerCover = document.getElementById("player-cover");
 const playerTitle = document.getElementById("player-title");
 const playerArtist = document.getElementById("player-artist");
@@ -54,6 +55,9 @@ const state = {
   detail: null,
 };
 
+const REPEAT_ORDER = { off: "all", all: "one", one: "off" };
+const REPEAT_LABEL = { off: "🔁", all: "🔁 tudo", one: "🔂 uma" };
+
 let dragDepth = 0;
 let editingId = null;
 let seeking = false;
@@ -81,15 +85,34 @@ function formatTime(seconds) {
   return `${minutes}:${rest}`;
 }
 
+function hueFor(track) {
+  return [...(track.album || track.title || "musicat")].reduce(
+    (acc, ch) => (acc * 31 + ch.charCodeAt(0)) % 360,
+    7,
+  );
+}
+
+function catPlaceholder(hue) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+    <rect width='100' height='100' fill='hsl(${hue} 42% 26%)'/>
+    <g fill='hsl(${hue} 72% 70%)'>
+      <ellipse cx='50' cy='68' rx='26' ry='21'/>
+      <polygon points='30,46 24,22 45,37'/>
+      <polygon points='70,46 76,22 55,37'/>
+      <circle cx='50' cy='54' r='24'/>
+    </g>
+    <circle cx='42' cy='52' r='3.4' fill='#2a1c28'/>
+    <circle cx='58' cy='52' r='3.4' fill='#2a1c28'/>
+    <path d='M50 60 q-5 5 -9 1 M50 60 q5 5 9 1' stroke='#2a1c28' stroke-width='2' fill='none' stroke-linecap='round'/>
+  </svg>`;
+  return `background: hsl(${hue} 42% 26%) url("data:image/svg+xml,${encodeURIComponent(svg)}") center/72% no-repeat;`;
+}
+
 function coverStyle(track) {
   if (track.has_cover) {
     return `background-image: url('/api/tracks/${track.id}/cover'); background-size: cover;`;
   }
-  const hue = [...(track.album || track.title || "musicat")].reduce(
-    (acc, ch) => (acc * 31 + ch.charCodeAt(0)) % 360,
-    7,
-  );
-  return `background: hsl(${hue} 60% 62%);`;
+  return catPlaceholder(hueFor(track));
 }
 
 function currentTrack() {
@@ -117,7 +140,7 @@ function loadCurrent() {
   savePlayer();
 }
 
-function step(delta) {
+function advance(delta) {
   if (!state.queue.length) return;
   let next = state.currentIndex + delta;
   if (next < 0 || next >= state.queue.length) {
@@ -160,15 +183,14 @@ function toggleShuffle() {
 }
 
 function toggleRepeat() {
-  const order = { off: "all", all: "one", one: "off" };
-  state.repeat = order[state.repeat];
+  state.repeat = REPEAT_ORDER[state.repeat];
   renderToggles();
 }
 
 function renderToggles() {
   shuffleButton.classList.toggle("is-on", state.shuffle);
   repeatButton.classList.toggle("is-on", state.repeat !== "off");
-  repeatButton.textContent = { off: "🔁", all: "🔁 tudo", one: "🔂 uma" }[state.repeat];
+  repeatButton.textContent = REPEAT_LABEL[state.repeat];
 }
 
 function onTrackEnded() {
@@ -178,7 +200,7 @@ function onTrackEnded() {
     return;
   }
   if (state.currentIndex + 1 < state.queue.length) {
-    step(1);
+    advance(1);
   } else if (state.repeat === "all" && state.queue.length) {
     state.currentIndex = 0;
     loadCurrent();
@@ -266,6 +288,7 @@ function editForm(track) {
       <input name="title" placeholder="Título" />
       <input name="artist" placeholder="Artista" />
       <input name="album" placeholder="Álbum" />
+      <input name="cover" type="file" accept="image/*" aria-label="Trocar capa" />
     </div>
     <div class="track__actions">
       <button type="submit">Salvar</button>
@@ -284,6 +307,12 @@ function editForm(track) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    const coverFile = form.elements.cover.files[0];
+    if (coverFile) {
+      const coverForm = new FormData();
+      coverForm.append("cover", coverFile);
+      await fetch(`/api/tracks/${track.id}/cover`, { method: "PUT", body: coverForm });
+    }
     editingId = null;
     loadLibrary();
   });
@@ -302,13 +331,22 @@ function renderUnrecognized(items) {
     entry.className = "unrecognized__item";
     const label = document.createElement("span");
     label.textContent = `${item.filename} — ${item.reason}`;
+    const reprocess = document.createElement("button");
+    reprocess.textContent = "Reprocessar";
+    reprocess.addEventListener("click", async () => {
+      const result = await (
+        await fetch(`/api/unrecognized/${item.id}/reprocess`, { method: "POST" })
+      ).json();
+      showToast(result.message || "reprocessado");
+      loadLibrary();
+    });
     const remove = document.createElement("button");
     remove.textContent = "Remover";
     remove.addEventListener("click", async () => {
       await fetch(`/api/unrecognized/${item.id}`, { method: "DELETE" });
       loadLibrary();
     });
-    entry.append(label, remove);
+    entry.append(label, reprocess, remove);
     unrecognizedList.appendChild(entry);
   }
 }
@@ -522,6 +560,40 @@ playlistDelete.addEventListener("click", async () => {
   loadPlaylists();
 });
 
+let toastTimer;
+function showToast(message) {
+  toast.textContent = message;
+  toast.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.hidden = true;
+  }, 4000);
+}
+
+async function filesFromDataTransfer(dataTransfer) {
+  const entries = dataTransfer.items
+    ? [...dataTransfer.items].map((item) => item.webkitGetAsEntry?.()).filter(Boolean)
+    : [];
+  if (!entries.length) return [...dataTransfer.files];
+
+  const files = [];
+  async function walk(entry) {
+    if (entry.isFile) {
+      const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+      files.push(file);
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      let batch;
+      do {
+        batch = await new Promise((resolve) => reader.readEntries(resolve));
+        for (const child of batch) await walk(child);
+      } while (batch.length);
+    }
+  }
+  for (const entry of entries) await walk(entry);
+  return files;
+}
+
 function uploadFiles(files) {
   if (!files.length) return;
   const form = new FormData();
@@ -540,6 +612,18 @@ function uploadFiles(files) {
   });
   request.addEventListener("load", () => {
     progress.hidden = true;
+    let summary = "Importação concluída";
+    try {
+      const data = JSON.parse(request.responseText);
+      const parts = [];
+      if (data.imported?.length) parts.push(`${data.imported.length} importada(s)`);
+      if (data.duplicates?.length) parts.push(`${data.duplicates.length} já na Biblioteca`);
+      if (data.unrecognized?.length) parts.push(`${data.unrecognized.length} não reconhecida(s)`);
+      if (parts.length) summary = parts.join(", ");
+    } catch (error) {
+      summary = "Falha ao importar";
+    }
+    showToast(summary);
     loadLibrary();
   });
   request.addEventListener("error", () => {
@@ -597,8 +681,8 @@ playButton.addEventListener("click", () => {
   }
 });
 
-prevButton.addEventListener("click", () => step(-1));
-nextButton.addEventListener("click", () => step(1));
+prevButton.addEventListener("click", () => advance(-1));
+nextButton.addEventListener("click", () => advance(1));
 shuffleButton.addEventListener("click", toggleShuffle);
 repeatButton.addEventListener("click", toggleRepeat);
 
@@ -655,7 +739,9 @@ window.addEventListener("dragleave", (event) => {
 window.addEventListener("drop", (event) => {
   event.preventDefault();
   hideDropzone();
-  if (event.dataTransfer?.files?.length) uploadFiles(event.dataTransfer.files);
+  filesFromDataTransfer(event.dataTransfer).then((files) => {
+    if (files.length) uploadFiles(files);
+  });
 });
 
 let searchTimer;

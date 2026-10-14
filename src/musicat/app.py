@@ -18,7 +18,6 @@ SORT_COLUMNS = {
     "artist": "artist",
     "duration": "duration",
     "imported_at": "imported_at",
-    "date": "imported_at",
 }
 EDITABLE_FIELDS = {"title", "artist", "album"}
 
@@ -26,6 +25,12 @@ EDITABLE_FIELDS = {"title", "artist", "album"}
 def _track_dict(row) -> dict:
     data = Track.from_row(row).to_dict()
     data["has_cover"] = (config.library_dir() / f"{data['content_hash']}.cover").exists()
+    return data
+
+
+def _playlist_dict(playlist, tracks) -> dict:
+    data = dict(playlist)
+    data["tracks"] = [_track_dict(row) for row in tracks]
     return data
 
 
@@ -45,8 +50,7 @@ def create_app() -> FastAPI:
         imported: list[dict] = []
         duplicates: list[dict] = []
         unrecognized: list[dict] = []
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             for upload in files:
                 data = await upload.read()
                 result = importer.import_file(
@@ -57,8 +61,6 @@ def create_app() -> FastAPI:
                     "duplicate": duplicates,
                     "unrecognized": unrecognized,
                 }[result["status"]].append(result)
-        finally:
-            connection.close()
         return {
             "imported": imported,
             "duplicates": duplicates,
@@ -69,8 +71,7 @@ def create_app() -> FastAPI:
     def library(search: str = "", sort: str = "imported_at") -> dict:
         column = SORT_COLUMNS.get(sort, "imported_at")
         direction = "DESC" if column == "imported_at" else "ASC"
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             query = "SELECT * FROM tracks"
             params: list[str] = []
             if search:
@@ -85,8 +86,6 @@ def create_app() -> FastAPI:
                     "SELECT * FROM unrecognized ORDER BY imported_at DESC"
                 )
             ]
-        finally:
-            connection.close()
         return {"tracks": tracks, "unrecognized": unrecognized}
 
     @app.patch("/api/tracks/{track_id}")
@@ -94,8 +93,7 @@ def create_app() -> FastAPI:
         fields = {key: value for key, value in payload.items() if key in EDITABLE_FIELDS}
         if not fields:
             raise HTTPException(status_code=400, detail="nenhum campo editável enviado")
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             row = connection.execute(
                 "SELECT * FROM tracks WHERE id = ?", (track_id,)
             ).fetchone()
@@ -110,19 +108,14 @@ def create_app() -> FastAPI:
             updated = connection.execute(
                 "SELECT * FROM tracks WHERE id = ?", (track_id,)
             ).fetchone()
-        finally:
-            connection.close()
         return _track_dict(updated)
 
     @app.get("/api/tracks/{track_id}/stream")
     def stream_track(track_id: int) -> FileResponse:
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             row = connection.execute(
                 "SELECT stored_name FROM tracks WHERE id = ?", (track_id,)
             ).fetchone()
-        finally:
-            connection.close()
         if row is None:
             raise HTTPException(status_code=404, detail="faixa não encontrada")
         audio_path = config.library_dir() / row["stored_name"]
@@ -133,13 +126,10 @@ def create_app() -> FastAPI:
 
     @app.get("/api/tracks/{track_id}/cover")
     def track_cover(track_id: int) -> FileResponse:
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             row = connection.execute(
                 "SELECT content_hash FROM tracks WHERE id = ?", (track_id,)
             ).fetchone()
-        finally:
-            connection.close()
         if row is None:
             raise HTTPException(status_code=404, detail="faixa não encontrada")
         cover_path = config.library_dir() / f"{row['content_hash']}.cover"
@@ -148,10 +138,23 @@ def create_app() -> FastAPI:
         media_type = metadata_reader.guess_media_type(cover_path.read_bytes())
         return FileResponse(cover_path, media_type=media_type)
 
+    @app.put("/api/tracks/{track_id}/cover")
+    async def upload_cover(track_id: int, cover: UploadFile = File(...)) -> dict:
+        data = await cover.read()
+        if metadata_reader.guess_media_type(data) == "application/octet-stream":
+            raise HTTPException(status_code=400, detail="imagem inválida")
+        with db.connection() as connection:
+            row = connection.execute(
+                "SELECT content_hash FROM tracks WHERE id = ?", (track_id,)
+            ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="faixa não encontrada")
+        (config.library_dir() / f"{row['content_hash']}.cover").write_bytes(data)
+        return {"status": "saved"}
+
     @app.delete("/api/unrecognized/{item_id}")
     def remove_unrecognized(item_id: int) -> dict:
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             row = connection.execute(
                 "SELECT * FROM unrecognized WHERE id = ?", (item_id,)
             ).fetchone()
@@ -161,14 +164,11 @@ def create_app() -> FastAPI:
                 (config.unrecognized_dir() / row["stored_name"]).unlink(missing_ok=True)
             connection.execute("DELETE FROM unrecognized WHERE id = ?", (item_id,))
             connection.commit()
-        finally:
-            connection.close()
         return {"status": "removed"}
 
     @app.post("/api/unrecognized/{item_id}/reprocess")
     def reprocess_unrecognized(item_id: int) -> dict:
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             row = connection.execute(
                 "SELECT * FROM unrecognized WHERE id = ?", (item_id,)
             ).fetchone()
@@ -179,15 +179,15 @@ def create_app() -> FastAPI:
             stored = config.unrecognized_dir() / row["stored_name"]
             if not stored.exists():
                 raise HTTPException(status_code=400, detail="arquivo indisponível")
-            result = importer.import_file(row["filename"], stored.read_bytes(), connection)
+            result = importer.import_file(
+                row["filename"], stored.read_bytes(), connection
+            )
             if result["status"] != "unrecognized":
                 stored.unlink(missing_ok=True)
                 connection.execute(
                     "DELETE FROM unrecognized WHERE id = ?", (item_id,)
                 )
                 connection.commit()
-        finally:
-            connection.close()
         return result
 
     @app.post("/api/playlists")
@@ -195,11 +195,8 @@ def create_app() -> FastAPI:
         name = (payload.get("name") or "").strip()
         if not name:
             raise HTTPException(status_code=400, detail="nome obrigatório")
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             row = playlists.create(connection, name)
-        finally:
-            connection.close()
         return dict(row)
 
     @app.post("/api/playlists/random")
@@ -209,63 +206,44 @@ def create_app() -> FastAPI:
         size = int(raw_size) if raw_size else None
         artist = payload.get("artist") or None
         fmt = payload.get("format") or None
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             ids = playlists.random_track_ids(
                 connection, artist=artist, fmt=fmt, size=size
             )
             created = playlists.create(connection, name)
             playlists.add_tracks(connection, created["id"], ids)
             playlist, tracks = playlists.get(connection, created["id"])
-        finally:
-            connection.close()
-        data = dict(playlist)
-        data["tracks"] = [_track_dict(row) for row in tracks]
-        return data
+        return _playlist_dict(playlist, tracks)
 
     @app.get("/api/playlists")
     def list_playlists() -> dict:
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             rows = playlists.list_all(connection)
-        finally:
-            connection.close()
         return {"playlists": [dict(row) for row in rows]}
 
     @app.get("/api/playlists/{playlist_id}")
     def get_playlist(playlist_id: int) -> dict:
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             playlist, tracks = playlists.get(connection, playlist_id)
-        finally:
-            connection.close()
         if playlist is None:
             raise HTTPException(status_code=404, detail="playlist não encontrada")
-        data = dict(playlist)
-        data["tracks"] = [_track_dict(row) for row in tracks]
-        return data
+        return _playlist_dict(playlist, tracks)
 
     @app.patch("/api/playlists/{playlist_id}")
     def rename_playlist(playlist_id: int, payload: dict = Body(...)) -> dict:
         name = (payload.get("name") or "").strip()
         if not name:
             raise HTTPException(status_code=400, detail="nome obrigatório")
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             row = playlists.rename(connection, playlist_id, name)
-        finally:
-            connection.close()
         if row is None:
             raise HTTPException(status_code=404, detail="playlist não encontrada")
         return dict(row)
 
     @app.delete("/api/playlists/{playlist_id}")
     def delete_playlist(playlist_id: int) -> dict:
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             playlists.delete(connection, playlist_id)
-        finally:
-            connection.close()
         return {"status": "removed"}
 
     @app.post("/api/playlists/{playlist_id}/tracks")
@@ -273,38 +251,29 @@ def create_app() -> FastAPI:
         track_id = payload.get("track_id")
         if track_id is None:
             raise HTTPException(status_code=400, detail="track_id obrigatório")
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             playlists.add_track(connection, playlist_id, track_id)
-        finally:
-            connection.close()
         return {"status": "added"}
 
     @app.delete("/api/playlists/{playlist_id}/tracks/{track_id}")
     def remove_playlist_track(playlist_id: int, track_id: int) -> dict:
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             playlists.remove_track(connection, playlist_id, track_id)
-        finally:
-            connection.close()
         return {"status": "removed"}
 
     @app.put("/api/playlists/{playlist_id}/tracks")
     def reorder_playlist_tracks(playlist_id: int, payload: dict = Body(...)) -> dict:
         track_ids = payload.get("track_ids") or []
-        connection = db.connect()
-        try:
-            playlists.reorder(connection, playlist_id, track_ids)
-        except ValueError as error:
-            raise HTTPException(status_code=400, detail=str(error))
-        finally:
-            connection.close()
+        with db.connection() as connection:
+            try:
+                playlists.reorder(connection, playlist_id, track_ids)
+            except ValueError as error:
+                raise HTTPException(status_code=400, detail=str(error))
         return {"status": "reordered"}
 
     @app.get("/api/player")
     def get_player() -> dict:
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             row = connection.execute(
                 "SELECT * FROM player_state WHERE id = 1"
             ).fetchone()
@@ -322,8 +291,6 @@ def create_app() -> FastAPI:
                 ).fetchone()
                 if track_row is not None:
                     tracks.append(_track_dict(track_row))
-        finally:
-            connection.close()
         return {
             "queue": tracks,
             "current_index": row["current_index"],
@@ -337,8 +304,7 @@ def create_app() -> FastAPI:
         current_index = int(payload.get("current_index", -1))
         position = float(payload.get("position", 0.0))
         volume = float(payload.get("volume", 1.0))
-        connection = db.connect()
-        try:
+        with db.connection() as connection:
             connection.execute(
                 """
                 INSERT INTO player_state (id, queue, current_index, position, volume)
@@ -352,8 +318,6 @@ def create_app() -> FastAPI:
                 (queue, current_index, position, volume),
             )
             connection.commit()
-        finally:
-            connection.close()
         return {"status": "saved"}
 
     return app

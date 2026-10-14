@@ -36,11 +36,17 @@ def _record_unrecognized(
 
 
 def import_file(filename: str, data: bytes, connection) -> dict:
-    suffix = Path(filename).suffix.lower()
-    if suffix not in metadata.SUPPORTED_EXTENSIONS:
+    source = Path(filename)
+    suffix = source.suffix.lower()
+    if not metadata.is_supported(source):
         reason = f"formato não suportado: {suffix or 'sem extensão'}"
         _record_unrecognized(connection, filename, reason, data, suffix)
-        return {"status": "unrecognized", "filename": filename, "reason": reason}
+        return {
+            "status": "unrecognized",
+            "filename": filename,
+            "reason": reason,
+            "message": reason,
+        }
 
     config.ensure_dirs()
     incoming = config.library_dir() / f".incoming-{uuid4().hex}"
@@ -52,16 +58,26 @@ def import_file(filename: str, data: bytes, connection) -> dict:
     ).fetchone()
     if existing:
         incoming.unlink(missing_ok=True)
-        return {"status": "duplicate", "filename": filename, "track_id": existing["id"]}
+        return {
+            "status": "duplicate",
+            "filename": filename,
+            "track_id": existing["id"],
+            "message": "já está na Biblioteca",
+        }
 
     try:
-        meta = metadata.read_metadata(incoming, Path(filename).stem, suffix.lstrip("."))
+        meta = metadata.read_metadata(incoming, source.stem, suffix.lstrip("."))
         cover = metadata.extract_cover(incoming)
     except Exception:
         incoming.unlink(missing_ok=True)
         reason = "não foi possível ler o áudio"
         _record_unrecognized(connection, filename, reason, data, suffix)
-        return {"status": "unrecognized", "filename": filename, "reason": reason}
+        return {
+            "status": "unrecognized",
+            "filename": filename,
+            "reason": reason,
+            "message": reason,
+        }
 
     stored_name = f"{digest}{suffix}"
     incoming.replace(config.library_dir() / stored_name)
@@ -78,13 +94,18 @@ def import_file(filename: str, data: bytes, connection) -> dict:
             digest,
             filename,
             stored_name,
-            meta["title"],
-            meta["artist"],
-            meta["album"],
-            meta["duration"],
-            meta["format"],
+            meta.title,
+            meta.artist,
+            meta.album,
+            meta.duration,
+            meta.format,
             _now(),
         ),
     )
     connection.commit()
-    return {"status": "imported", "filename": filename, "track_id": cursor.lastrowid}
+    return {
+        "status": "imported",
+        "filename": filename,
+        "track_id": cursor.lastrowid,
+        "message": "importada",
+    }

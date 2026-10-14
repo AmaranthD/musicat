@@ -1,3 +1,4 @@
+import os
 import socket
 import threading
 import webbrowser
@@ -19,7 +20,8 @@ def pick_port(host: str, preferred: int) -> int:
 
 def main() -> None:
     host = "127.0.0.1"
-    port = pick_port(host, 8000)
+    preferred = int(os.environ.get("MUSICAT_PORT", "8000"))
+    port = pick_port(host, preferred)
     url = f"http://{host}:{port}/"
     threading.Timer(1.0, webbrowser.open, args=(url,)).start()
     uvicorn.run(create_app(), host=host, port=port)

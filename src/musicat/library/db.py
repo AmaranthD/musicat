@@ -1,5 +1,5 @@
 import sqlite3
-from contextlib import closing
+from contextlib import closing, contextmanager
 
 from .. import config
 
@@ -52,6 +52,15 @@ def connect() -> sqlite3.Connection:
     connection = sqlite3.connect(config.db_path())
     connection.row_factory = sqlite3.Row
     return connection
+
+
+@contextmanager
+def connection():
+    handle = connect()
+    try:
+        yield handle
+    finally:
+        handle.close()
 
 
 def init_db() -> None:
