@@ -531,6 +531,67 @@ body {
   cursor: grab;
 }
 
+/* --- polimento --- */
+
+.waveform {
+  width: 100%;
+  height: 46px;
+  margin-top: 14px;
+  display: block;
+  opacity: 0.9;
+}
+
+button,
+.playlist-chip,
+.track,
+.queue__item,
+.track__play {
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+
+.player__controls button:hover,
+.track__actions button:hover {
+  transform: translateY(-1px);
+}
+
+.track:hover {
+  background: #2e293d;
+}
+
+.playlist-chip:hover {
+  background: #322c45;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--panel);
+  border-radius: 8px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "stage"
+      "player"
+      "library"
+      "playlists";
+  }
+
+  .search {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
 .panel__count {
   color: var(--accent-2);
   font-size: 13px;

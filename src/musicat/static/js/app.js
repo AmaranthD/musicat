@@ -16,6 +16,8 @@ const playerCover = document.getElementById("player-cover");
 const playerTitle = document.getElementById("player-title");
 const playerArtist = document.getElementById("player-artist");
 const seek = document.getElementById("seek");
+const waveform = document.getElementById("waveform");
+const waveContext = waveform.getContext("2d");
 const timeCurrent = document.getElementById("time-current");
 const timeTotal = document.getElementById("time-total");
 const playButton = document.getElementById("play");
@@ -547,6 +549,43 @@ function uploadFiles(files) {
   request.send(form);
 }
 
+function sizeWaveform() {
+  waveform.width = waveform.clientWidth;
+  waveform.height = waveform.clientHeight;
+}
+
+function drawWaveform() {
+  const width = waveform.width;
+  const height = waveform.height;
+  waveContext.clearRect(0, 0, width, height);
+  const graph = window.__musicatAudio;
+  const accent =
+    getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#ffb3d1";
+  waveContext.fillStyle = accent;
+  const bars = 48;
+  const gap = 2;
+  const barWidth = (width - gap * (bars - 1)) / bars;
+  let data = null;
+  if (graph && graph.analyser) {
+    data = new Uint8Array(graph.analyser.frequencyBinCount);
+    graph.analyser.getByteFrequencyData(data);
+  }
+  for (let i = 0; i < bars; i += 1) {
+    let value = 0.06;
+    if (data) {
+      const idx = Math.floor((i / bars) * data.length * 0.6);
+      value = data[idx] / 255;
+    } else {
+      value = 0.06 + 0.04 * Math.sin(i / 3 + performance.now() / 600);
+    }
+    const barHeight = Math.max(2, value * height);
+    waveContext.globalAlpha = 0.5 + value * 0.5;
+    waveContext.fillRect(i * (barWidth + gap), height - barHeight, barWidth, barHeight);
+  }
+  waveContext.globalAlpha = 1;
+  requestAnimationFrame(drawWaveform);
+}
+
 playButton.addEventListener("click", () => {
   if (!currentTrack()) return;
   if (audio.paused) {
@@ -627,9 +666,12 @@ searchInput.addEventListener("input", () => {
 sortSelect.addEventListener("change", loadLibrary);
 
 window.addEventListener("beforeunload", savePlayer);
+window.addEventListener("resize", sizeWaveform);
 
 renderToggles();
 initStage();
+sizeWaveform();
+requestAnimationFrame(drawWaveform);
 loadLibrary();
 loadPlaylists();
 restorePlayer();
