@@ -201,6 +201,27 @@ def create_app() -> FastAPI:
             connection.close()
         return dict(row)
 
+    @app.post("/api/playlists/random")
+    def random_playlist(payload: dict = Body(default={})) -> dict:
+        name = (payload.get("name") or "").strip() or "Aleatória"
+        raw_size = payload.get("size")
+        size = int(raw_size) if raw_size else None
+        artist = payload.get("artist") or None
+        fmt = payload.get("format") or None
+        connection = db.connect()
+        try:
+            ids = playlists.random_track_ids(
+                connection, artist=artist, fmt=fmt, size=size
+            )
+            created = playlists.create(connection, name)
+            playlists.add_tracks(connection, created["id"], ids)
+            playlist, tracks = playlists.get(connection, created["id"])
+        finally:
+            connection.close()
+        data = dict(playlist)
+        data["tracks"] = [_track_dict(row) for row in tracks]
+        return data
+
     @app.get("/api/playlists")
     def list_playlists() -> dict:
         connection = db.connect()

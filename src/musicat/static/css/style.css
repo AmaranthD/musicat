@@ -351,6 +351,41 @@ body {
   gap: 6px;
 }
 
+.playlist-random {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.playlist-random input,
+.playlist-random select {
+  background: var(--panel);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 13px;
+  min-width: 0;
+  flex: 1;
+}
+
+.playlist-random input:focus,
+.playlist-random select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.playlist-random button {
+  background: var(--accent-2);
+  color: #16232a;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .playlist-chip {
   padding: 8px 12px;
   border-radius: 10px;

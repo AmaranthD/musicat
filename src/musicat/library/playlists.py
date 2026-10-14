@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import random
 
 
 def _now() -> str:
@@ -106,5 +107,42 @@ def reorder(connection, playlist_id: int, track_ids: list[int]) -> None:
             WHERE playlist_id = ? AND track_id = ?
             """,
             (position, playlist_id, track_id),
+        )
+    connection.commit()
+
+
+def random_track_ids(
+    connection,
+    artist: str | None = None,
+    fmt: str | None = None,
+    size: int | None = None,
+) -> list[int]:
+    query = "SELECT id FROM tracks"
+    clauses: list[str] = []
+    params: list[str] = []
+    if artist:
+        clauses.append("artist LIKE ?")
+        params.append(f"%{artist}%")
+    if fmt:
+        clauses.append("format = ?")
+        params.append(fmt)
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+
+    ids = [row["id"] for row in connection.execute(query, params)]
+    random.shuffle(ids)
+    if size is not None:
+        ids = ids[:size]
+    return ids
+
+
+def add_tracks(connection, playlist_id: int, track_ids: list[int]) -> None:
+    for position, track_id in enumerate(track_ids):
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position)
+            VALUES (?, ?, ?)
+            """,
+            (playlist_id, track_id, position),
         )
     connection.commit()

@@ -77,6 +77,20 @@
           <input id="playlist-name" placeholder="Nova playlist…" aria-label="Nome da nova playlist" />
           <button type="submit">Criar</button>
         </form>
+        <form class="playlist-random" id="random-form">
+          <input id="random-size" type="number" min="1" placeholder="N (tamanho)" aria-label="Tamanho" />
+          <input id="random-artist" placeholder="Filtrar por artista" aria-label="Filtrar por artista" />
+          <select id="random-format" aria-label="Filtrar por formato">
+            <option value="">Qualquer formato</option>
+            <option value="mp3">mp3</option>
+            <option value="flac">flac</option>
+            <option value="m4a">m4a</option>
+            <option value="ogg">ogg</option>
+            <option value="opus">opus</option>
+            <option value="wav">wav</option>
+          </select>
+          <button type="submit">🎲 Aleatória</button>
+        </form>
         <ul class="playlist-list" id="playlist-list"></ul>
         <div class="playlist-detail" id="playlist-detail" hidden>
           <div class="playlist-detail__head">

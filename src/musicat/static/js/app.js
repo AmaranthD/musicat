@@ -26,6 +26,10 @@ const queueList = document.getElementById("queue-list");
 const queueEmpty = document.getElementById("queue-empty");
 const playlistForm = document.getElementById("playlist-form");
 const playlistName = document.getElementById("playlist-name");
+const randomForm = document.getElementById("random-form");
+const randomSize = document.getElementById("random-size");
+const randomArtist = document.getElementById("random-artist");
+const randomFormat = document.getElementById("random-format");
 const playlistList = document.getElementById("playlist-list");
 const playlistTarget = document.getElementById("playlist-target");
 const playlistDetail = document.getElementById("playlist-detail");
@@ -421,6 +425,26 @@ playlistForm.addEventListener("submit", async (event) => {
   });
   playlistName.value = "";
   loadPlaylists();
+});
+
+randomForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const payload = {
+    size: randomSize.value ? Number(randomSize.value) : null,
+    artist: randomArtist.value.trim(),
+    format: randomFormat.value,
+  };
+  const created = await (
+    await fetch("/api/playlists/random", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+  ).json();
+  randomSize.value = "";
+  randomArtist.value = "";
+  await loadPlaylists();
+  openPlaylist(created.id);
 });
 
 playlistPlay.addEventListener("click", () => {
