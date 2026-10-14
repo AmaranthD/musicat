@@ -20,10 +20,12 @@ const playButton = document.getElementById("play");
 const prevButton = document.getElementById("prev");
 const nextButton = document.getElementById("next");
 const volumeInput = document.getElementById("volume");
+const shuffleButton = document.getElementById("shuffle");
+const repeatButton = document.getElementById("repeat");
 const queueList = document.getElementById("queue-list");
 const queueEmpty = document.getElementById("queue-empty");
 
-const state = { tracks: [], queue: [], currentIndex: -1 };
+const state = { tracks: [], queue: [], baseQueue: [], currentIndex: -1, shuffle: false, repeat: "off" };
 let dragDepth = 0;
 let editingId = null;
 let seeking = false;
@@ -76,14 +78,78 @@ function loadCurrent() {
 function playTrack(id) {
   const index = state.tracks.findIndex((track) => track.id === id);
   if (index === -1) return;
+  state.baseQueue = state.tracks.slice();
   state.queue = state.tracks.slice();
   state.currentIndex = index;
+  if (state.shuffle) applyShuffle(state.queue[index]);
   loadCurrent();
 }
 
+function shuffleArray(items) {
+  for (let i = items.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+  return items;
+}
+
+function applyShuffle(first) {
+  const rest = state.queue.filter((track) => track.id !== first.id);
+  shuffleArray(rest);
+  state.queue = [first, ...rest];
+  state.currentIndex = 0;
+}
+
+function toggleShuffle() {
+  const track = currentTrack();
+  state.shuffle = !state.shuffle;
+  if (state.shuffle) {
+    state.baseQueue = state.queue.length ? state.queue.slice() : state.baseQueue;
+    if (track) applyShuffle(track);
+  } else {
+    state.queue = state.baseQueue.slice();
+    state.currentIndex = track
+      ? state.queue.findIndex((item) => item.id === track.id)
+      : -1;
+  }
+  renderToggles();
+  renderQueue();
+}
+
+function toggleRepeat() {
+  const order = { off: "all", all: "one", one: "off" };
+  state.repeat = order[state.repeat];
+  renderToggles();
+}
+
+function renderToggles() {
+  shuffleButton.classList.toggle("is-on", state.shuffle);
+  repeatButton.classList.toggle("is-on", state.repeat !== "off");
+  const label = { off: "🔁", all: "🔁 tudo", one: "🔂 uma" };
+  repeatButton.textContent = label[state.repeat];
+}
+
+function onTrackEnded() {
+  if (state.repeat === "one") {
+    audio.currentTime = 0;
+    audio.play();
+    return;
+  }
+  if (state.currentIndex + 1 < state.queue.length) {
+    step(1);
+  } else if (state.repeat === "all" && state.queue.length) {
+    state.currentIndex = 0;
+    loadCurrent();
+  }
+}
+
 function step(delta) {
-  const next = state.currentIndex + delta;
-  if (next < 0 || next >= state.queue.length) return;
+  if (!state.queue.length) return;
+  let next = state.currentIndex + delta;
+  if (next < 0 || next >= state.queue.length) {
+    if (state.repeat !== "all") return;
+    next = (next + state.queue.length) % state.queue.length;
+  }
   state.currentIndex = next;
   loadCurrent();
 }
@@ -270,13 +336,13 @@ playButton.addEventListener("click", () => {
 
 prevButton.addEventListener("click", () => step(-1));
 nextButton.addEventListener("click", () => step(1));
+shuffleButton.addEventListener("click", toggleShuffle);
+repeatButton.addEventListener("click", toggleRepeat);
 
 audio.addEventListener("play", renderPlayer);
 audio.addEventListener("pause", renderPlayer);
 
-audio.addEventListener("ended", () => {
-  if (state.currentIndex + 1 < state.queue.length) step(1);
-});
+audio.addEventListener("ended", onTrackEnded);
 
 audio.addEventListener("loadedmetadata", () => {
   timeTotal.textContent = formatTime(audio.duration);
@@ -347,4 +413,5 @@ searchInput.addEventListener("input", () => {
 
 sortSelect.addEventListener("change", loadLibrary);
 
+renderToggles();
 loadLibrary();

@@ -245,6 +245,11 @@ body {
   font-size: 20px;
 }
 
+.player__controls button.is-on {
+  background: var(--accent-2);
+  color: #16232a;
+}
+
 .volume {
   margin-left: auto;
   accent-color: var(--accent-2);
