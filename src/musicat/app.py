@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config
-from .library import db, importer
+from .library import db, importer, playlists
 from .library import metadata as metadata_reader
 from .models import Track, UnrecognizedItem
 
@@ -188,5 +188,95 @@ def create_app() -> FastAPI:
         finally:
             connection.close()
         return result
+
+    @app.post("/api/playlists")
+    def create_playlist(payload: dict = Body(...)) -> dict:
+        name = (payload.get("name") or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="nome obrigatório")
+        connection = db.connect()
+        try:
+            row = playlists.create(connection, name)
+        finally:
+            connection.close()
+        return dict(row)
+
+    @app.get("/api/playlists")
+    def list_playlists() -> dict:
+        connection = db.connect()
+        try:
+            rows = playlists.list_all(connection)
+        finally:
+            connection.close()
+        return {"playlists": [dict(row) for row in rows]}
+
+    @app.get("/api/playlists/{playlist_id}")
+    def get_playlist(playlist_id: int) -> dict:
+        connection = db.connect()
+        try:
+            playlist, tracks = playlists.get(connection, playlist_id)
+        finally:
+            connection.close()
+        if playlist is None:
+            raise HTTPException(status_code=404, detail="playlist não encontrada")
+        data = dict(playlist)
+        data["tracks"] = [_track_dict(row) for row in tracks]
+        return data
+
+    @app.patch("/api/playlists/{playlist_id}")
+    def rename_playlist(playlist_id: int, payload: dict = Body(...)) -> dict:
+        name = (payload.get("name") or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="nome obrigatório")
+        connection = db.connect()
+        try:
+            row = playlists.rename(connection, playlist_id, name)
+        finally:
+            connection.close()
+        if row is None:
+            raise HTTPException(status_code=404, detail="playlist não encontrada")
+        return dict(row)
+
+    @app.delete("/api/playlists/{playlist_id}")
+    def delete_playlist(playlist_id: int) -> dict:
+        connection = db.connect()
+        try:
+            playlists.delete(connection, playlist_id)
+        finally:
+            connection.close()
+        return {"status": "removed"}
+
+    @app.post("/api/playlists/{playlist_id}/tracks")
+    def add_playlist_track(playlist_id: int, payload: dict = Body(...)) -> dict:
+        track_id = payload.get("track_id")
+        if track_id is None:
+            raise HTTPException(status_code=400, detail="track_id obrigatório")
+        connection = db.connect()
+        try:
+            playlists.add_track(connection, playlist_id, track_id)
+        finally:
+            connection.close()
+        return {"status": "added"}
+
+    @app.delete("/api/playlists/{playlist_id}/tracks/{track_id}")
+    def remove_playlist_track(playlist_id: int, track_id: int) -> dict:
+        connection = db.connect()
+        try:
+            playlists.remove_track(connection, playlist_id, track_id)
+        finally:
+            connection.close()
+        return {"status": "removed"}
+
+    @app.put("/api/playlists/{playlist_id}/tracks")
+    def reorder_playlist_tracks(playlist_id: int, payload: dict = Body(...)) -> dict:
+        track_ids = payload.get("track_ids") or []
+        connection = db.connect()
+        try:
+            playlists.reorder(connection, playlist_id, track_ids)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error))
+        finally:
+            connection.close()
+        return {"status": "reordered"}
 
     return app

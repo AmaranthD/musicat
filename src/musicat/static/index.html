@@ -26,16 +26,7 @@
           </div>
         </div>
 
-        <input
-          type="range"
-          class="seek"
-          id="seek"
-          min="0"
-          max="1000"
-          value="0"
-          step="1"
-          aria-label="Progresso"
-        />
+        <input type="range" class="seek" id="seek" min="0" max="1000" value="0" step="1" aria-label="Progresso" />
         <div class="player__times">
           <span id="time-current">0:00</span>
           <span id="time-total">0:00</span>
@@ -47,16 +38,7 @@
           <button id="play" class="play" aria-label="Tocar">▶</button>
           <button id="next" aria-label="Próxima">⏭</button>
           <button id="repeat" aria-label="Repetir" title="Repetir">🔁</button>
-          <input
-            type="range"
-            class="volume"
-            id="volume"
-            min="0"
-            max="1"
-            step="0.01"
-            value="1"
-            aria-label="Volume"
-          />
+          <input type="range" class="volume" id="volume" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
         </div>
 
         <div class="queue">
@@ -70,13 +52,7 @@
         <div class="panel__head">
           <h2 class="panel__title">Biblioteca</h2>
           <span class="panel__count" id="library-count"></span>
-          <input
-            type="search"
-            class="search"
-            id="search"
-            placeholder="Buscar título, artista, álbum…"
-            aria-label="Buscar na biblioteca"
-          />
+          <input type="search" class="search" id="search" placeholder="Buscar título, artista, álbum…" aria-label="Buscar na biblioteca" />
           <select class="sort" id="sort" aria-label="Ordenar por">
             <option value="imported_at">Recentes</option>
             <option value="title">Título</option>
@@ -89,6 +65,27 @@
         <div class="unrecognized" id="unrecognized" hidden>
           <h3 class="unrecognized__title">Itens não reconhecidos</h3>
           <ul class="unrecognized__list" id="unrecognized-list"></ul>
+        </div>
+      </section>
+
+      <section class="playlists" aria-label="Playlists">
+        <div class="panel__head">
+          <h2 class="panel__title">Playlists</h2>
+          <select class="sort" id="playlist-target" aria-label="Adicionar faixas a playlist"></select>
+        </div>
+        <form class="playlist-new" id="playlist-form">
+          <input id="playlist-name" placeholder="Nova playlist…" aria-label="Nome da nova playlist" />
+          <button type="submit">Criar</button>
+        </form>
+        <ul class="playlist-list" id="playlist-list"></ul>
+        <div class="playlist-detail" id="playlist-detail" hidden>
+          <div class="playlist-detail__head">
+            <span id="playlist-detail-name"></span>
+            <button id="playlist-play" title="Tocar playlist" aria-label="Tocar playlist">▶</button>
+            <button id="playlist-rename" title="Renomear" aria-label="Renomear">✎</button>
+            <button id="playlist-delete" title="Apagar" aria-label="Apagar">🗑</button>
+          </div>
+          <ul class="playlist-tracks" id="playlist-tracks"></ul>
         </div>
       </section>
     </main>

@@ -24,6 +24,19 @@ CREATE TABLE IF NOT EXISTS unrecognized (
     reason      TEXT NOT NULL,
     imported_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS playlists (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS playlist_tracks (
+    playlist_id INTEGER NOT NULL,
+    track_id    INTEGER NOT NULL,
+    position    INTEGER NOT NULL,
+    PRIMARY KEY (playlist_id, track_id)
+);
 """
 
 

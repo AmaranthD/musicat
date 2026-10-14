@@ -24,8 +24,28 @@ const shuffleButton = document.getElementById("shuffle");
 const repeatButton = document.getElementById("repeat");
 const queueList = document.getElementById("queue-list");
 const queueEmpty = document.getElementById("queue-empty");
+const playlistForm = document.getElementById("playlist-form");
+const playlistName = document.getElementById("playlist-name");
+const playlistList = document.getElementById("playlist-list");
+const playlistTarget = document.getElementById("playlist-target");
+const playlistDetail = document.getElementById("playlist-detail");
+const playlistDetailName = document.getElementById("playlist-detail-name");
+const playlistTracks = document.getElementById("playlist-tracks");
+const playlistPlay = document.getElementById("playlist-play");
+const playlistRename = document.getElementById("playlist-rename");
+const playlistDelete = document.getElementById("playlist-delete");
 
-const state = { tracks: [], queue: [], baseQueue: [], currentIndex: -1, shuffle: false, repeat: "off" };
+const state = {
+  tracks: [],
+  queue: [],
+  baseQueue: [],
+  currentIndex: -1,
+  shuffle: false,
+  repeat: "off",
+  playlists: [],
+  detail: null,
+};
+
 let dragDepth = 0;
 let editingId = null;
 let seeking = false;
@@ -64,6 +84,15 @@ function currentTrack() {
   return state.queue[state.currentIndex] || null;
 }
 
+function playQueue(tracks, index) {
+  if (!tracks.length) return;
+  state.baseQueue = tracks.slice();
+  state.queue = tracks.slice();
+  state.currentIndex = index ?? 0;
+  if (state.shuffle) applyShuffle(state.queue[state.currentIndex]);
+  loadCurrent();
+}
+
 function loadCurrent() {
   const track = currentTrack();
   if (!track) return;
@@ -75,13 +104,14 @@ function loadCurrent() {
   renderQueue();
 }
 
-function playTrack(id) {
-  const index = state.tracks.findIndex((track) => track.id === id);
-  if (index === -1) return;
-  state.baseQueue = state.tracks.slice();
-  state.queue = state.tracks.slice();
-  state.currentIndex = index;
-  if (state.shuffle) applyShuffle(state.queue[index]);
+function step(delta) {
+  if (!state.queue.length) return;
+  let next = state.currentIndex + delta;
+  if (next < 0 || next >= state.queue.length) {
+    if (state.repeat !== "all") return;
+    next = (next + state.queue.length) % state.queue.length;
+  }
+  state.currentIndex = next;
   loadCurrent();
 }
 
@@ -125,8 +155,7 @@ function toggleRepeat() {
 function renderToggles() {
   shuffleButton.classList.toggle("is-on", state.shuffle);
   repeatButton.classList.toggle("is-on", state.repeat !== "off");
-  const label = { off: "🔁", all: "🔁 tudo", one: "🔂 uma" };
-  repeatButton.textContent = label[state.repeat];
+  repeatButton.textContent = { off: "🔁", all: "🔁 tudo", one: "🔂 uma" }[state.repeat];
 }
 
 function onTrackEnded() {
@@ -141,17 +170,6 @@ function onTrackEnded() {
     state.currentIndex = 0;
     loadCurrent();
   }
-}
-
-function step(delta) {
-  if (!state.queue.length) return;
-  let next = state.currentIndex + delta;
-  if (next < 0 || next >= state.queue.length) {
-    if (state.repeat !== "all") return;
-    next = (next + state.queue.length) % state.queue.length;
-  }
-  state.currentIndex = next;
-  loadCurrent();
 }
 
 function renderPlayer() {
@@ -174,7 +192,7 @@ function renderQueue() {
   state.queue.forEach((track, index) => {
     const item = document.createElement("li");
     item.className = "queue__item" + (index === state.currentIndex ? " is-current" : "");
-    item.textContent = `${track.title || track.filename}`;
+    item.textContent = track.title || track.filename;
     item.addEventListener("click", () => {
       state.currentIndex = index;
       loadCurrent();
@@ -207,13 +225,17 @@ function renderTracks(tracks) {
         <span class="track__sub"></span>
       </div>
       <span class="track__duration"></span>
+      <button class="track__add" title="Adicionar à playlist" aria-label="Adicionar à playlist">＋</button>
       <button class="track__edit" title="Editar metadados" aria-label="Editar">✎</button>
     `;
     item.querySelector(".track__title").textContent = track.title || track.filename;
     const sub = [track.artist, track.album].filter(Boolean).join(" • ");
     item.querySelector(".track__sub").textContent = sub || track.filename;
     item.querySelector(".track__duration").textContent = formatTime(track.duration);
-    item.querySelector(".track__play").addEventListener("click", () => playTrack(track.id));
+    item.querySelector(".track__play").addEventListener("click", () =>
+      playQueue(state.tracks, state.tracks.indexOf(track)),
+    );
+    item.querySelector(".track__add").addEventListener("click", () => addToPlaylist(track.id));
     item.querySelector(".track__edit").addEventListener("click", () => {
       editingId = track.id;
       renderTracks(tracks);
@@ -243,9 +265,7 @@ function editForm(track) {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const payload = {};
-    for (const key of ["title", "artist", "album"]) {
-      payload[key] = form.elements[key].value;
-    }
+    for (const key of ["title", "artist", "album"]) payload[key] = form.elements[key].value;
     await fetch(`/api/tracks/${track.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -281,10 +301,7 @@ function renderUnrecognized(items) {
 }
 
 async function loadLibrary() {
-  const params = new URLSearchParams({
-    search: searchInput.value,
-    sort: sortSelect.value,
-  });
+  const params = new URLSearchParams({ search: searchInput.value, sort: sortSelect.value });
   const response = await fetch(`/api/library?${params}`);
   const data = await response.json();
   state.tracks = data.tracks;
@@ -292,15 +309,128 @@ async function loadLibrary() {
   renderUnrecognized(data.unrecognized);
 }
 
+async function loadPlaylists() {
+  const data = await (await fetch("/api/playlists")).json();
+  state.playlists = data.playlists;
+  renderPlaylists();
+  renderTargetSelect();
+  if (state.detail && !state.playlists.some((p) => p.id === state.detail.id)) {
+    state.detail = null;
+    renderDetail();
+  }
+}
+
+function renderPlaylists() {
+  playlistList.innerHTML = "";
+  for (const playlist of state.playlists) {
+    const item = document.createElement("li");
+    item.className = "playlist-chip" + (state.detail?.id === playlist.id ? " is-current" : "");
+    item.textContent = `${playlist.name} (${playlist.track_count})`;
+    item.addEventListener("click", () => openPlaylist(playlist.id));
+    playlistList.appendChild(item);
+  }
+}
+
+function renderTargetSelect() {
+  const previous = playlistTarget.value;
+  playlistTarget.innerHTML = `<option value="">Adicionar a…</option>`;
+  for (const playlist of state.playlists) {
+    const option = document.createElement("option");
+    option.value = String(playlist.id);
+    option.textContent = playlist.name;
+    playlistTarget.appendChild(option);
+  }
+  if (previous) playlistTarget.value = previous;
+}
+
+async function openPlaylist(id) {
+  const response = await fetch(`/api/playlists/${id}`);
+  if (!response.ok) return;
+  state.detail = await response.json();
+  renderDetail();
+  renderPlaylists();
+}
+
+function renderDetail() {
+  const detail = state.detail;
+  playlistDetail.hidden = !detail;
+  if (!detail) return;
+  playlistDetailName.textContent = detail.name;
+  playlistTracks.innerHTML = "";
+  detail.tracks.forEach((track, index) => {
+    const item = document.createElement("li");
+    item.className = "playlist-track";
+    const label = document.createElement("span");
+    label.textContent = track.title || track.filename;
+    label.addEventListener("click", () => playQueue(detail.tracks, index));
+    const remove = document.createElement("button");
+    remove.textContent = "✕";
+    remove.addEventListener("click", async () => {
+      await fetch(`/api/playlists/${detail.id}/tracks/${track.id}`, { method: "DELETE" });
+      openPlaylist(detail.id);
+      loadPlaylists();
+    });
+    item.append(label, remove);
+    playlistTracks.appendChild(item);
+  });
+}
+
+async function addToPlaylist(trackId) {
+  const targetId = playlistTarget.value;
+  if (!targetId) return;
+  await fetch(`/api/playlists/${targetId}/tracks`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ track_id: trackId }),
+  });
+  if (state.detail && String(state.detail.id) === targetId) openPlaylist(state.detail.id);
+  loadPlaylists();
+}
+
+playlistForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const name = playlistName.value.trim();
+  if (!name) return;
+  await fetch("/api/playlists", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  playlistName.value = "";
+  loadPlaylists();
+});
+
+playlistPlay.addEventListener("click", () => {
+  if (state.detail) playQueue(state.detail.tracks, 0);
+});
+
+playlistRename.addEventListener("click", async () => {
+  const name = prompt("Novo nome da playlist:", state.detail?.name || "");
+  if (!name) return;
+  await fetch(`/api/playlists/${state.detail.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  openPlaylist(state.detail.id);
+  loadPlaylists();
+});
+
+playlistDelete.addEventListener("click", async () => {
+  if (!state.detail) return;
+  await fetch(`/api/playlists/${state.detail.id}`, { method: "DELETE" });
+  state.detail = null;
+  renderDetail();
+  loadPlaylists();
+});
+
 function uploadFiles(files) {
   if (!files.length) return;
-
   const form = new FormData();
   for (const file of files) form.append("files", file);
 
   const request = new XMLHttpRequest();
   request.open("POST", "/api/import");
-
   progress.hidden = false;
   progressBar.style.width = "0%";
   progressLabel.textContent = `Importando ${files.length} arquivo(s)…`;
@@ -310,7 +440,6 @@ function uploadFiles(files) {
       progressBar.style.width = `${(event.loaded / event.total) * 100}%`;
     }
   });
-
   request.addEventListener("load", () => {
     progress.hidden = true;
     loadLibrary();
@@ -319,7 +448,6 @@ function uploadFiles(files) {
     progress.hidden = true;
     progressLabel.textContent = "Falha ao importar";
   });
-
   request.send(form);
 }
 
@@ -341,13 +469,10 @@ repeatButton.addEventListener("click", toggleRepeat);
 
 audio.addEventListener("play", renderPlayer);
 audio.addEventListener("pause", renderPlayer);
-
 audio.addEventListener("ended", onTrackEnded);
-
 audio.addEventListener("loadedmetadata", () => {
   timeTotal.textContent = formatTime(audio.duration);
 });
-
 audio.addEventListener("timeupdate", () => {
   if (seeking) return;
   timeCurrent.textContent = formatTime(audio.currentTime);
@@ -358,16 +483,12 @@ audio.addEventListener("timeupdate", () => {
 
 seek.addEventListener("input", () => {
   seeking = true;
-  if (audio.duration) {
-    timeCurrent.textContent = formatTime((seek.value / 1000) * audio.duration);
-  }
+  if (audio.duration) timeCurrent.textContent = formatTime((seek.value / 1000) * audio.duration);
 });
-
 seek.addEventListener("change", () => {
   if (audio.duration) audio.currentTime = (seek.value / 1000) * audio.duration;
   seeking = false;
 });
-
 volumeInput.addEventListener("input", () => {
   audio.volume = Number(volumeInput.value);
 });
@@ -375,7 +496,6 @@ volumeInput.addEventListener("input", () => {
 function showDropzone() {
   dropzone.hidden = false;
 }
-
 function hideDropzone() {
   dragDepth = 0;
   dropzone.hidden = true;
@@ -386,23 +506,16 @@ window.addEventListener("dragenter", (event) => {
   dragDepth += 1;
   showDropzone();
 });
-
-window.addEventListener("dragover", (event) => {
-  event.preventDefault();
-});
-
+window.addEventListener("dragover", (event) => event.preventDefault());
 window.addEventListener("dragleave", (event) => {
   event.preventDefault();
   dragDepth -= 1;
   if (dragDepth <= 0) hideDropzone();
 });
-
 window.addEventListener("drop", (event) => {
   event.preventDefault();
   hideDropzone();
-  if (event.dataTransfer?.files?.length) {
-    uploadFiles(event.dataTransfer.files);
-  }
+  if (event.dataTransfer?.files?.length) uploadFiles(event.dataTransfer.files);
 });
 
 let searchTimer;
@@ -410,8 +523,8 @@ searchInput.addEventListener("input", () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(loadLibrary, 200);
 });
-
 sortSelect.addEventListener("change", loadLibrary);
 
 renderToggles();
 loadLibrary();
+loadPlaylists();
