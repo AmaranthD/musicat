@@ -752,21 +752,27 @@ button,
 
 .dropzone__close {
   position: absolute;
-  top: 20px;
-  right: 24px;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  border: none;
-  background: var(--panel);
-  color: var(--text);
-  font-size: 18px;
+  top: 22px;
+  right: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  border: 2px solid #ffd7e8;
+  background: var(--accent);
+  color: #2a1c28;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
   cursor: pointer;
+  box-shadow: 0 8px 24px rgba(255, 179, 209, 0.45);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
 .dropzone__close:hover {
-  background: var(--accent);
-  color: #2a1c28;
+  transform: scale(1.06);
+  box-shadow: 0 10px 30px rgba(255, 179, 209, 0.7);
 }
 
 .import-button {
