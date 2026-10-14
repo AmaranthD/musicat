@@ -1,3 +1,5 @@
+import { initStage } from "./stage.js";
+
 const audio = document.getElementById("audio");
 const dropzone = document.getElementById("dropzone");
 const trackList = document.getElementById("track-list");
@@ -61,8 +63,12 @@ function ensureAudioGraph() {
   if (audioContext) return;
   audioContext = new AudioContext();
   sourceNode = audioContext.createMediaElementSource(audio);
-  sourceNode.connect(audioContext.destination);
-  window.__musicatAudio = { audioContext, sourceNode };
+  const analyser = audioContext.createAnalyser();
+  analyser.fftSize = 1024;
+  analyser.smoothingTimeConstant = 0.75;
+  sourceNode.connect(analyser);
+  analyser.connect(audioContext.destination);
+  window.__musicatAudio = { audioContext, sourceNode, analyser };
 }
 
 function formatTime(seconds) {
@@ -623,6 +629,7 @@ sortSelect.addEventListener("change", loadLibrary);
 window.addEventListener("beforeunload", savePlayer);
 
 renderToggles();
+initStage();
 loadLibrary();
 loadPlaylists();
 restorePlayer();
