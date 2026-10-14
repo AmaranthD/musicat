@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Musicat</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1 class="brand">Musicat</h1>
+    </header>
+
+    <main class="layout">
+      <section class="stage" aria-label="Palco">
+        <p class="stage__hint">Arraste músicas para começar</p>
+      </section>
+
+      <section class="player" aria-label="Player">
+        <div class="player__now">
+          <div class="player__cover" aria-hidden="true"></div>
+          <div class="player__meta">
+            <span class="player__title">Nada tocando</span>
+            <span class="player__artist">—</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="library" aria-label="Biblioteca e Fila">
+        <h2 class="panel__title">Biblioteca</h2>
+        <p class="panel__empty">Nenhuma faixa ainda.</p>
+      </section>
+    </main>
+
+    <script src="/static/js/app.js" type="module"></script>
+  </body>
+</html>
