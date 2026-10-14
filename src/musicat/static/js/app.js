@@ -2,6 +2,9 @@ import { initStage } from "./stage.js";
 
 const audio = document.getElementById("audio");
 const dropzone = document.getElementById("dropzone");
+const dropzoneClose = document.getElementById("dropzone-close");
+const importButton = document.getElementById("import-button");
+const fileInput = document.getElementById("file-input");
 const trackList = document.getElementById("track-list");
 const libraryEmpty = document.getElementById("library-empty");
 const libraryCount = document.getElementById("library-count");
@@ -58,7 +61,6 @@ const state = {
 const REPEAT_ORDER = { off: "all", all: "one", one: "off" };
 const REPEAT_LABEL = { off: "🔁", all: "🔁 tudo", one: "🔂 uma" };
 
-let dragDepth = 0;
 let editingId = null;
 let seeking = false;
 
@@ -720,28 +722,34 @@ volumeInput.addEventListener("input", () => {
 function showDropzone() {
   dropzone.hidden = false;
 }
+
 function hideDropzone() {
-  dragDepth = 0;
   dropzone.hidden = true;
 }
 
 window.addEventListener("dragenter", (event) => {
   event.preventDefault();
-  dragDepth += 1;
   showDropzone();
 });
 window.addEventListener("dragover", (event) => event.preventDefault());
 window.addEventListener("dragleave", (event) => {
   event.preventDefault();
-  dragDepth -= 1;
-  if (dragDepth <= 0) hideDropzone();
+  if (event.relatedTarget === null) hideDropzone();
 });
+window.addEventListener("dragend", hideDropzone);
 window.addEventListener("drop", (event) => {
   event.preventDefault();
   hideDropzone();
   filesFromDataTransfer(event.dataTransfer).then((files) => {
     if (files.length) uploadFiles(files);
   });
+});
+
+dropzoneClose.addEventListener("click", hideDropzone);
+importButton.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) uploadFiles(fileInput.files);
+  fileInput.value = "";
 });
 
 let searchTimer;

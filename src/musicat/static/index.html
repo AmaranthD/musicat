@@ -54,6 +54,8 @@
         <div class="panel__head">
           <h2 class="panel__title">Biblioteca</h2>
           <span class="panel__count" id="library-count"></span>
+          <button class="import-button" id="import-button">＋ Importar</button>
+          <input type="file" id="file-input" accept="audio/*" multiple hidden />
           <input type="search" class="search" id="search" placeholder="Buscar título, artista, álbum…" aria-label="Buscar na biblioteca" />
           <select class="sort" id="sort" aria-label="Ordenar por">
             <option value="imported_at">Recentes</option>
@@ -109,6 +111,7 @@
     <audio id="audio" preload="metadata"></audio>
 
     <div class="dropzone" id="dropzone" hidden>
+      <button class="dropzone__close" id="dropzone-close" aria-label="Fechar">✕</button>
       <div class="dropzone__box">
         <span class="dropzone__paw">🐾</span>
         <p class="dropzone__text">Solte para importar</p>
