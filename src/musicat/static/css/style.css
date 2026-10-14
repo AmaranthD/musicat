@@ -114,3 +114,148 @@ body {
 .panel__empty {
   color: var(--text-dim);
 }
+
+.tagline {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.panel__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.panel__count {
+  color: var(--accent-2);
+  font-size: 13px;
+}
+
+.track-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.track {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.track__cover {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent-3), var(--accent));
+}
+
+.track__info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.track__title {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track__sub {
+  color: var(--text-dim);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track__duration {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.unrecognized {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 120, 120, 0.08);
+}
+
+.unrecognized__title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #ff9d9d;
+}
+
+.unrecognized__list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.dropzone {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 18, 27, 0.75);
+  backdrop-filter: blur(3px);
+  z-index: 20;
+}
+
+.dropzone__box {
+  padding: 40px 60px;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  text-align: center;
+  color: var(--accent);
+}
+
+.dropzone__paw {
+  font-size: 44px;
+  display: block;
+}
+
+.dropzone__text {
+  margin: 10px 0 0;
+  font-size: 18px;
+}
+
+.progress {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 34px;
+  background: var(--bg-soft);
+  border-top: 1px solid var(--panel);
+  display: flex;
+  align-items: center;
+}
+
+.progress__bar {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent-2), var(--accent));
+  transition: width 0.15s ease;
+}
+
+.progress__label {
+  position: absolute;
+  left: 14px;
+  font-size: 13px;
+  color: var(--text);
+  mix-blend-mode: difference;
+}

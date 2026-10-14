@@ -9,11 +9,12 @@
   <body>
     <header class="topbar">
       <h1 class="brand">Musicat</h1>
+      <p class="tagline">Arraste suas músicas para cá</p>
     </header>
 
     <main class="layout">
       <section class="stage" aria-label="Palco">
-        <p class="stage__hint">Arraste músicas para começar</p>
+        <p class="stage__hint">Os gatinhos chegam na próxima fatia</p>
       </section>
 
       <section class="player" aria-label="Player">
@@ -26,11 +27,31 @@
         </div>
       </section>
 
-      <section class="library" aria-label="Biblioteca e Fila">
-        <h2 class="panel__title">Biblioteca</h2>
-        <p class="panel__empty">Nenhuma faixa ainda.</p>
+      <section class="library" aria-label="Biblioteca">
+        <div class="panel__head">
+          <h2 class="panel__title">Biblioteca</h2>
+          <span class="panel__count" id="library-count"></span>
+        </div>
+        <ul class="track-list" id="track-list"></ul>
+        <p class="panel__empty" id="library-empty">Nenhuma faixa ainda. Arraste arquivos de música.</p>
+        <div class="unrecognized" id="unrecognized" hidden>
+          <h3 class="unrecognized__title">Itens não reconhecidos</h3>
+          <ul class="unrecognized__list" id="unrecognized-list"></ul>
+        </div>
       </section>
     </main>
+
+    <div class="dropzone" id="dropzone" hidden>
+      <div class="dropzone__box">
+        <span class="dropzone__paw">🐾</span>
+        <p class="dropzone__text">Solte para importar</p>
+      </div>
+    </div>
+
+    <div class="progress" id="progress" hidden>
+      <div class="progress__bar" id="progress-bar"></div>
+      <span class="progress__label" id="progress-label">Importando…</span>
+    </div>
 
     <script src="/static/js/app.js" type="module"></script>
   </body>
