@@ -1,3 +1,4 @@
+const audio = document.getElementById("audio");
 const dropzone = document.getElementById("dropzone");
 const trackList = document.getElementById("track-list");
 const libraryEmpty = document.getElementById("library-empty");
@@ -9,11 +10,36 @@ const unrecognizedList = document.getElementById("unrecognized-list");
 const progress = document.getElementById("progress");
 const progressBar = document.getElementById("progress-bar");
 const progressLabel = document.getElementById("progress-label");
+const playerCover = document.getElementById("player-cover");
+const playerTitle = document.getElementById("player-title");
+const playerArtist = document.getElementById("player-artist");
+const seek = document.getElementById("seek");
+const timeCurrent = document.getElementById("time-current");
+const timeTotal = document.getElementById("time-total");
+const playButton = document.getElementById("play");
+const prevButton = document.getElementById("prev");
+const nextButton = document.getElementById("next");
+const volumeInput = document.getElementById("volume");
+const queueList = document.getElementById("queue-list");
+const queueEmpty = document.getElementById("queue-empty");
 
+const state = { tracks: [], queue: [], currentIndex: -1 };
 let dragDepth = 0;
 let editingId = null;
+let seeking = false;
 
-function formatDuration(seconds) {
+let audioContext = null;
+let sourceNode = null;
+
+function ensureAudioGraph() {
+  if (audioContext) return;
+  audioContext = new AudioContext();
+  sourceNode = audioContext.createMediaElementSource(audio);
+  sourceNode.connect(audioContext.destination);
+  window.__musicatAudio = { audioContext, sourceNode };
+}
+
+function formatTime(seconds) {
   if (!seconds && seconds !== 0) return "--:--";
   const total = Math.round(seconds);
   const minutes = Math.floor(total / 60);
@@ -30,6 +56,65 @@ function coverStyle(track) {
     7,
   );
   return `background: hsl(${hue} 60% 62%);`;
+}
+
+function currentTrack() {
+  return state.queue[state.currentIndex] || null;
+}
+
+function loadCurrent() {
+  const track = currentTrack();
+  if (!track) return;
+  ensureAudioGraph();
+  if (audioContext.state === "suspended") audioContext.resume();
+  audio.src = `/api/tracks/${track.id}/stream`;
+  audio.play();
+  renderPlayer();
+  renderQueue();
+}
+
+function playTrack(id) {
+  const index = state.tracks.findIndex((track) => track.id === id);
+  if (index === -1) return;
+  state.queue = state.tracks.slice();
+  state.currentIndex = index;
+  loadCurrent();
+}
+
+function step(delta) {
+  const next = state.currentIndex + delta;
+  if (next < 0 || next >= state.queue.length) return;
+  state.currentIndex = next;
+  loadCurrent();
+}
+
+function renderPlayer() {
+  const track = currentTrack();
+  playButton.textContent = audio.paused ? "▶" : "⏸";
+  if (!track) {
+    playerTitle.textContent = "Nada tocando";
+    playerArtist.textContent = "—";
+    playerCover.style = "";
+    return;
+  }
+  playerCover.style = coverStyle(track);
+  playerTitle.textContent = track.title || track.filename;
+  playerArtist.textContent = [track.artist, track.album].filter(Boolean).join(" • ") || "—";
+}
+
+function renderQueue() {
+  queueList.innerHTML = "";
+  queueEmpty.hidden = state.queue.length > 0;
+  state.queue.forEach((track, index) => {
+    const item = document.createElement("li");
+    item.className = "queue__item" + (index === state.currentIndex ? " is-current" : "");
+    item.textContent = `${track.title || track.filename}`;
+    item.addEventListener("click", () => {
+      state.currentIndex = index;
+      loadCurrent();
+    });
+    queueList.appendChild(item);
+  });
 }
 
 function renderTracks(tracks) {
@@ -49,6 +134,7 @@ function renderTracks(tracks) {
     }
 
     item.innerHTML = `
+      <button class="track__play" title="Tocar" aria-label="Tocar">▶</button>
       <div class="track__cover" style="${coverStyle(track)}" aria-hidden="true"></div>
       <div class="track__info">
         <span class="track__title"></span>
@@ -60,7 +146,8 @@ function renderTracks(tracks) {
     item.querySelector(".track__title").textContent = track.title || track.filename;
     const sub = [track.artist, track.album].filter(Boolean).join(" • ");
     item.querySelector(".track__sub").textContent = sub || track.filename;
-    item.querySelector(".track__duration").textContent = formatDuration(track.duration);
+    item.querySelector(".track__duration").textContent = formatTime(track.duration);
+    item.querySelector(".track__play").addEventListener("click", () => playTrack(track.id));
     item.querySelector(".track__edit").addEventListener("click", () => {
       editingId = track.id;
       renderTracks(tracks);
@@ -134,6 +221,7 @@ async function loadLibrary() {
   });
   const response = await fetch(`/api/library?${params}`);
   const data = await response.json();
+  state.tracks = data.tracks;
   renderTracks(data.tracks);
   renderUnrecognized(data.unrecognized);
 }
@@ -168,6 +256,55 @@ function uploadFiles(files) {
 
   request.send(form);
 }
+
+playButton.addEventListener("click", () => {
+  if (!currentTrack()) return;
+  if (audio.paused) {
+    ensureAudioGraph();
+    if (audioContext.state === "suspended") audioContext.resume();
+    audio.play();
+  } else {
+    audio.pause();
+  }
+});
+
+prevButton.addEventListener("click", () => step(-1));
+nextButton.addEventListener("click", () => step(1));
+
+audio.addEventListener("play", renderPlayer);
+audio.addEventListener("pause", renderPlayer);
+
+audio.addEventListener("ended", () => {
+  if (state.currentIndex + 1 < state.queue.length) step(1);
+});
+
+audio.addEventListener("loadedmetadata", () => {
+  timeTotal.textContent = formatTime(audio.duration);
+});
+
+audio.addEventListener("timeupdate", () => {
+  if (seeking) return;
+  timeCurrent.textContent = formatTime(audio.currentTime);
+  if (audio.duration) {
+    seek.value = String(Math.round((audio.currentTime / audio.duration) * 1000));
+  }
+});
+
+seek.addEventListener("input", () => {
+  seeking = true;
+  if (audio.duration) {
+    timeCurrent.textContent = formatTime((seek.value / 1000) * audio.duration);
+  }
+});
+
+seek.addEventListener("change", () => {
+  if (audio.duration) audio.currentTime = (seek.value / 1000) * audio.duration;
+  seeking = false;
+});
+
+volumeInput.addEventListener("input", () => {
+  audio.volume = Number(volumeInput.value);
+});
 
 function showDropzone() {
   dropzone.hidden = false;

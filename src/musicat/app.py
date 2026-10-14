@@ -1,4 +1,5 @@
 from pathlib import Path
+import mimetypes
 
 from fastapi import Body, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -111,6 +112,23 @@ def create_app() -> FastAPI:
         finally:
             connection.close()
         return _track_dict(updated)
+
+    @app.get("/api/tracks/{track_id}/stream")
+    def stream_track(track_id: int) -> FileResponse:
+        connection = db.connect()
+        try:
+            row = connection.execute(
+                "SELECT stored_name FROM tracks WHERE id = ?", (track_id,)
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None:
+            raise HTTPException(status_code=404, detail="faixa não encontrada")
+        audio_path = config.library_dir() / row["stored_name"]
+        if not audio_path.exists():
+            raise HTTPException(status_code=404, detail="arquivo indisponível")
+        media_type = mimetypes.guess_type(audio_path.name)[0] or "audio/mpeg"
+        return FileResponse(audio_path, media_type=media_type)
 
     @app.get("/api/tracks/{track_id}/cover")
     def track_cover(track_id: int) -> FileResponse:
