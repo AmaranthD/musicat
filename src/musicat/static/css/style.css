@@ -427,6 +427,19 @@ body {
   cursor: pointer;
 }
 
+.playlist-track {
+  padding: 4px 6px;
+  border-radius: 8px;
+}
+
+.playlist-track.is-dragging {
+  opacity: 0.4;
+}
+
+.playlist-track[draggable="true"] {
+  cursor: grab;
+}
+
 .panel__count {
   color: var(--accent-2);
   font-size: 13px;

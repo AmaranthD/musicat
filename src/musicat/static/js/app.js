@@ -360,6 +360,7 @@ function renderDetail() {
   detail.tracks.forEach((track, index) => {
     const item = document.createElement("li");
     item.className = "playlist-track";
+    item.draggable = true;
     const label = document.createElement("span");
     label.textContent = track.title || track.filename;
     label.addEventListener("click", () => playQueue(detail.tracks, index));
@@ -370,6 +371,28 @@ function renderDetail() {
       openPlaylist(detail.id);
       loadPlaylists();
     });
+
+    item.addEventListener("dragstart", (event) => {
+      event.dataTransfer.setData("text/plain", String(index));
+      item.classList.add("is-dragging");
+    });
+    item.addEventListener("dragend", () => item.classList.remove("is-dragging"));
+    item.addEventListener("dragover", (event) => event.preventDefault());
+    item.addEventListener("drop", async (event) => {
+      event.preventDefault();
+      const from = Number(event.dataTransfer.getData("text/plain"));
+      if (from === index) return;
+      const ids = detail.tracks.map((entry) => entry.id);
+      const [moved] = ids.splice(from, 1);
+      ids.splice(index, 0, moved);
+      await fetch(`/api/playlists/${detail.id}/tracks`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ track_ids: ids }),
+      });
+      openPlaylist(detail.id);
+    });
+
     item.append(label, remove);
     playlistTracks.appendChild(item);
   });
