@@ -125,6 +125,84 @@ body {
   display: flex;
   align-items: baseline;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+.search {
+  margin-left: auto;
+  background: var(--panel);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 14px;
+  min-width: 200px;
+}
+
+.search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.sort {
+  background: var(--panel);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.track__edit {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.track__edit:hover {
+  color: var(--accent);
+}
+
+.track--editing {
+  grid-template-columns: 44px 1fr auto;
+}
+
+.track__fields {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.track__fields input {
+  background: var(--bg-soft);
+  border: 1px solid var(--panel);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 13px;
+  min-width: 110px;
+}
+
+.track__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.track__actions button {
+  background: var(--accent);
+  color: #2a1c28;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.track__actions button[data-cancel] {
+  background: var(--panel);
+  color: var(--text-dim);
 }
 
 .panel__count {

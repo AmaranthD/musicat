@@ -31,6 +31,19 @@
         <div class="panel__head">
           <h2 class="panel__title">Biblioteca</h2>
           <span class="panel__count" id="library-count"></span>
+          <input
+            type="search"
+            class="search"
+            id="search"
+            placeholder="Buscar título, artista, álbum…"
+            aria-label="Buscar na biblioteca"
+          />
+          <select class="sort" id="sort" aria-label="Ordenar por">
+            <option value="imported_at">Recentes</option>
+            <option value="title">Título</option>
+            <option value="artist">Artista</option>
+            <option value="duration">Duração</option>
+          </select>
         </div>
         <ul class="track-list" id="track-list"></ul>
         <p class="panel__empty" id="library-empty">Nenhuma faixa ainda. Arraste arquivos de música.</p>

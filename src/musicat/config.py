@@ -11,9 +11,14 @@ def library_dir() -> Path:
     return data_dir() / "library"
 
 
+def unrecognized_dir() -> Path:
+    return data_dir() / "unrecognized"
+
+
 def db_path() -> Path:
     return data_dir() / "musicat.db"
 
 
 def ensure_dirs() -> None:
     library_dir().mkdir(parents=True, exist_ok=True)
+    unrecognized_dir().mkdir(parents=True, exist_ok=True)

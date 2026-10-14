@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS tracks (
 CREATE TABLE IF NOT EXISTS unrecognized (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     filename    TEXT NOT NULL,
+    stored_name TEXT,
     reason      TEXT NOT NULL,
     imported_at TEXT NOT NULL
 );

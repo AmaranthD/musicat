@@ -28,10 +28,13 @@ class UnrecognizedItem:
     filename: str
     reason: str
     imported_at: str
+    stored_name: str | None = None
 
     @classmethod
     def from_row(cls, row) -> "UnrecognizedItem":
         return cls(**{key: row[key] for key in row.keys()})
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        data = asdict(self)
+        data.pop("stored_name", None)
+        return data

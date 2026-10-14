@@ -37,3 +37,36 @@ def read_metadata(path: Path, fallback_title: str, fmt: str) -> dict:
         "duration": getattr(audio.info, "length", None),
         "format": fmt,
     }
+
+
+def extract_cover(path: Path) -> bytes | None:
+    audio = MutagenFile(path)
+    if audio is None:
+        return None
+
+    tags = audio.tags
+    if tags is not None:
+        getall = getattr(tags, "getall", None)
+        if getall is not None:
+            frames = getall("APIC")
+            if frames:
+                return frames[0].data
+        if hasattr(tags, "get"):
+            cover_frames = tags.get("covr")
+            if cover_frames:
+                return bytes(cover_frames[0])
+
+    pictures = getattr(audio, "pictures", None)
+    if pictures:
+        return pictures[0].data
+    return None
+
+
+def guess_media_type(data: bytes) -> str:
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"GIF8"):
+        return "image/gif"
+    return "application/octet-stream"
