@@ -106,6 +106,7 @@ function loadCurrent() {
   audio.play();
   renderPlayer();
   renderQueue();
+  savePlayer();
 }
 
 function step(delta) {
@@ -414,6 +415,48 @@ async function addToPlaylist(trackId) {
   loadPlaylists();
 }
 
+let saveTimer;
+function savePlayer() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    fetch("/api/player", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      keepalive: true,
+      body: JSON.stringify({
+        queue: state.queue.map((track) => track.id),
+        current_index: state.currentIndex,
+        position: audio.currentTime || 0,
+        volume: audio.volume,
+      }),
+    });
+  }, 300);
+}
+
+async function restorePlayer() {
+  const data = await (await fetch("/api/player")).json();
+  const volume = data.volume ?? 1;
+  volumeInput.value = String(volume);
+  audio.volume = volume;
+  if (!data.queue || !data.queue.length) return;
+  state.baseQueue = data.queue.slice();
+  state.queue = data.queue.slice();
+  state.currentIndex = data.current_index ?? 0;
+  const track = currentTrack();
+  if (!track) return;
+  audio.src = `/api/tracks/${track.id}/stream`;
+  const position = data.position || 0;
+  audio.addEventListener(
+    "loadedmetadata",
+    () => {
+      audio.currentTime = position;
+    },
+    { once: true },
+  );
+  renderPlayer();
+  renderQueue();
+}
+
 playlistForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = playlistName.value.trim();
@@ -515,7 +558,10 @@ shuffleButton.addEventListener("click", toggleShuffle);
 repeatButton.addEventListener("click", toggleRepeat);
 
 audio.addEventListener("play", renderPlayer);
-audio.addEventListener("pause", renderPlayer);
+audio.addEventListener("pause", () => {
+  renderPlayer();
+  savePlayer();
+});
 audio.addEventListener("ended", onTrackEnded);
 audio.addEventListener("loadedmetadata", () => {
   timeTotal.textContent = formatTime(audio.duration);
@@ -535,9 +581,11 @@ seek.addEventListener("input", () => {
 seek.addEventListener("change", () => {
   if (audio.duration) audio.currentTime = (seek.value / 1000) * audio.duration;
   seeking = false;
+  savePlayer();
 });
 volumeInput.addEventListener("input", () => {
   audio.volume = Number(volumeInput.value);
+  savePlayer();
 });
 
 function showDropzone() {
@@ -572,6 +620,9 @@ searchInput.addEventListener("input", () => {
 });
 sortSelect.addEventListener("change", loadLibrary);
 
+window.addEventListener("beforeunload", savePlayer);
+
 renderToggles();
 loadLibrary();
 loadPlaylists();
+restorePlayer();

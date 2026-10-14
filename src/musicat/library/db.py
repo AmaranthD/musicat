@@ -37,6 +37,14 @@ CREATE TABLE IF NOT EXISTS playlist_tracks (
     position    INTEGER NOT NULL,
     PRIMARY KEY (playlist_id, track_id)
 );
+
+CREATE TABLE IF NOT EXISTS player_state (
+    id            INTEGER PRIMARY KEY CHECK (id = 1),
+    queue         TEXT NOT NULL,
+    current_index INTEGER NOT NULL,
+    position      REAL NOT NULL,
+    volume        REAL NOT NULL
+);
 """
 
 

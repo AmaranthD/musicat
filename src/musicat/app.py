@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import mimetypes
 
 from fastapi import Body, FastAPI, File, HTTPException, UploadFile
@@ -299,5 +300,60 @@ def create_app() -> FastAPI:
         finally:
             connection.close()
         return {"status": "reordered"}
+
+    @app.get("/api/player")
+    def get_player() -> dict:
+        connection = db.connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM player_state WHERE id = 1"
+            ).fetchone()
+            if row is None:
+                return {
+                    "queue": [],
+                    "current_index": -1,
+                    "position": 0.0,
+                    "volume": 1.0,
+                }
+            tracks = []
+            for track_id in json.loads(row["queue"]):
+                track_row = connection.execute(
+                    "SELECT * FROM tracks WHERE id = ?", (track_id,)
+                ).fetchone()
+                if track_row is not None:
+                    tracks.append(_track_dict(track_row))
+        finally:
+            connection.close()
+        return {
+            "queue": tracks,
+            "current_index": row["current_index"],
+            "position": row["position"],
+            "volume": row["volume"],
+        }
+
+    @app.put("/api/player")
+    def save_player(payload: dict = Body(...)) -> dict:
+        queue = json.dumps(payload.get("queue") or [])
+        current_index = int(payload.get("current_index", -1))
+        position = float(payload.get("position", 0.0))
+        volume = float(payload.get("volume", 1.0))
+        connection = db.connect()
+        try:
+            connection.execute(
+                """
+                INSERT INTO player_state (id, queue, current_index, position, volume)
+                VALUES (1, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    queue = excluded.queue,
+                    current_index = excluded.current_index,
+                    position = excluded.position,
+                    volume = excluded.volume
+                """,
+                (queue, current_index, position, volume),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+        return {"status": "saved"}
 
     return app
