@@ -1,0 +1,29 @@
+{
+  "cell": 40,
+  "colors": {
+    "orange_0": {
+      "sitting": 50,
+      "looking": 40,
+      "laying": 64,
+      "walking": 32,
+      "running": 40,
+      "running2": 64
+    },
+    "grey_0": {
+      "sitting": 50,
+      "looking": 40,
+      "laying": 64,
+      "walking": 32,
+      "running": 40,
+      "running2": 64
+    },
+    "calico_0": {
+      "sitting": 50,
+      "looking": 40,
+      "laying": 64,
+      "walking": 32,
+      "running": 40,
+      "running2": 64
+    }
+  }
+}

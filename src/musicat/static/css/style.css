@@ -88,36 +88,22 @@ body {
 }
 
 .cat-wrapper {
-  width: 26%;
-  max-width: 150px;
+  width: 22%;
+  max-width: 170px;
+  display: flex;
+  justify-content: center;
   transform-origin: center bottom;
   will-change: transform;
 }
 
-.cat {
-  width: 100%;
-  height: auto;
-  display: block;
-  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.3));
-}
-
-.cat__body,
-.cat__head,
-.cat__tail {
-  transform-box: fill-box;
+.cat-sprite {
+  width: 120px;
+  height: 120px;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.35));
+  transform-origin: center bottom;
   will-change: transform;
-}
-
-.cat__body {
-  transform-origin: center bottom;
-}
-
-.cat__head {
-  transform-origin: center bottom;
-}
-
-.cat__tail {
-  transform-origin: left bottom;
 }
 
 .stage__hint {
@@ -792,6 +778,16 @@ button,
 
 .import-button:hover {
   transform: translateY(-1px);
+}
+
+.credit {
+  padding: 0 28px 26px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.credit a {
+  color: var(--accent-2);
 }
 
 .progress {
