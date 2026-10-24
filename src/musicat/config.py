@@ -57,6 +57,16 @@ def port() -> int:
     return int(os.environ.get("MUSICAT_PORT", "8000"))
 
 
+def open_browser() -> bool:
+    raw = os.environ.get("MUSICAT_OPEN_BROWSER", "1").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
+
+
+def strict_port() -> bool:
+    raw = os.environ.get("MUSICAT_STRICT_PORT", "0").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
 def ensure_dirs() -> None:
     library_dir().mkdir(parents=True, exist_ok=True)
     unrecognized_dir().mkdir(parents=True, exist_ok=True)

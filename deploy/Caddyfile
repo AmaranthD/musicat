@@ -1,0 +1,13 @@
+{$MUSICAT_DOMAIN} {
+    encode zstd gzip
+
+    request_body {
+        max_size 2GB
+    }
+
+    header {
+        -Server
+    }
+
+    reverse_proxy musicat:8000
+}

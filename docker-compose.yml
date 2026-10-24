@@ -1,0 +1,40 @@
+name: musicat
+
+services:
+  musicat:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MUSICAT_DATA_DIR: /data
+      MUSICAT_HOST: 0.0.0.0
+      MUSICAT_PORT: "8000"
+      MUSICAT_OPEN_BROWSER: "0"
+      MUSICAT_STRICT_PORT: "1"
+    volumes:
+      - musicat_data:/data
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      musicat:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      MUSICAT_DOMAIN: ${MUSICAT_DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  musicat_data:
+  caddy_data:
+  caddy_config:

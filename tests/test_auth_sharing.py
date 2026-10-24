@@ -286,3 +286,10 @@ def test_session_cookie_is_secure_behind_https_proxy(signed_client):
 
     assert response.status_code == 200
     assert "secure" in response.headers["set-cookie"].lower()
+
+
+def test_healthz_is_public(anonymous_client):
+    response = anonymous_client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}

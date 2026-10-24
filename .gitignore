@@ -8,3 +8,7 @@ data/
 .env
 .env.*
 !.env.example
+
+build/
+dist/
+*.whl

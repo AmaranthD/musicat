@@ -77,6 +77,10 @@ def create_app() -> FastAPI:
     def index() -> FileResponse:
         return FileResponse(STATIC_DIR / "index.html")
 
+    @app.get("/healthz")
+    def healthz() -> dict:
+        return {"status": "ok"}
+
     @app.get("/api/auth/config")
     def auth_config() -> dict:
         return {

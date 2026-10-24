@@ -20,10 +20,13 @@ def pick_port(host: str, preferred: int) -> int:
 
 def main() -> None:
     host = config.host()
-    port = pick_port(host, config.port())
-    url = f"http://{'127.0.0.1' if host == '0.0.0.0' else host}:{port}/"
-    threading.Timer(1.0, webbrowser.open, args=(url,)).start()
-    uvicorn.run(create_app(), host=host, port=port)
+    preferred = config.port()
+    port = preferred if config.strict_port() else pick_port(host, preferred)
+    display_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host
+    url = f"http://{display_host}:{port}/"
+    if config.open_browser():
+        threading.Timer(1.0, webbrowser.open, args=(url,)).start()
+    uvicorn.run(create_app(), host=host, port=port, proxy_headers=True)
 
 
 if __name__ == "__main__":
