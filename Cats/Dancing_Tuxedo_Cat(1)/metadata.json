@@ -1,0 +1,247 @@
+{
+  "group_id": "4b8b28a5-2b2c-4557-be35-8f14521d6c10",
+  "states": [
+    {
+      "character": {
+        "id": "a3322d99-8ba9-439d-ad74-95d10e5855c8",
+        "name": "Idle",
+        "prompt": "cute anthropomorphic black cat with big green eyes, wearing a black tuxedo with a white shirt and a red bow tie, standing upright, chibi proportions",
+        "size": {
+          "width": 64,
+          "height": 64
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "low top-down",
+        "created_at": "2026-10-20T10:36:10.218169+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "south-east": "Idle/rotations/south-east.png",
+          "east": "Idle/rotations/east.png",
+          "north-east": "Idle/rotations/north-east.png",
+          "north": "Idle/rotations/north.png",
+          "north-west": "Idle/rotations/north-west.png",
+          "west": "Idle/rotations/west.png",
+          "south-west": "Idle/rotations/south-west.png"
+        },
+        "animations": {
+          "dance": {
+            "west": [
+              "Idle/animations/dance/west/frame_000.png",
+              "Idle/animations/dance/west/frame_001.png",
+              "Idle/animations/dance/west/frame_002.png",
+              "Idle/animations/dance/west/frame_003.png",
+              "Idle/animations/dance/west/frame_004.png",
+              "Idle/animations/dance/west/frame_005.png",
+              "Idle/animations/dance/west/frame_006.png",
+              "Idle/animations/dance/west/frame_007.png",
+              "Idle/animations/dance/west/frame_008.png"
+            ],
+            "south-west": [
+              "Idle/animations/dance/south-west/frame_000.png",
+              "Idle/animations/dance/south-west/frame_001.png",
+              "Idle/animations/dance/south-west/frame_002.png",
+              "Idle/animations/dance/south-west/frame_003.png",
+              "Idle/animations/dance/south-west/frame_004.png",
+              "Idle/animations/dance/south-west/frame_005.png",
+              "Idle/animations/dance/south-west/frame_006.png",
+              "Idle/animations/dance/south-west/frame_007.png",
+              "Idle/animations/dance/south-west/frame_008.png"
+            ],
+            "south-east": [
+              "Idle/animations/dance/south-east/frame_000.png",
+              "Idle/animations/dance/south-east/frame_001.png",
+              "Idle/animations/dance/south-east/frame_002.png",
+              "Idle/animations/dance/south-east/frame_003.png",
+              "Idle/animations/dance/south-east/frame_004.png",
+              "Idle/animations/dance/south-east/frame_005.png",
+              "Idle/animations/dance/south-east/frame_006.png",
+              "Idle/animations/dance/south-east/frame_007.png",
+              "Idle/animations/dance/south-east/frame_008.png"
+            ],
+            "east": [
+              "Idle/animations/dance/east/frame_000.png",
+              "Idle/animations/dance/east/frame_001.png",
+              "Idle/animations/dance/east/frame_002.png",
+              "Idle/animations/dance/east/frame_003.png",
+              "Idle/animations/dance/east/frame_004.png",
+              "Idle/animations/dance/east/frame_005.png",
+              "Idle/animations/dance/east/frame_006.png",
+              "Idle/animations/dance/east/frame_007.png",
+              "Idle/animations/dance/east/frame_008.png"
+            ],
+            "south": [
+              "Idle/animations/dance/south/frame_000.png",
+              "Idle/animations/dance/south/frame_001.png",
+              "Idle/animations/dance/south/frame_002.png",
+              "Idle/animations/dance/south/frame_003.png",
+              "Idle/animations/dance/south/frame_004.png",
+              "Idle/animations/dance/south/frame_005.png",
+              "Idle/animations/dance/south/frame_006.png",
+              "Idle/animations/dance/south/frame_007.png",
+              "Idle/animations/dance/south/frame_008.png"
+            ],
+            "north-east": [
+              "Idle/animations/dance/north-east/frame_000.png",
+              "Idle/animations/dance/north-east/frame_001.png",
+              "Idle/animations/dance/north-east/frame_002.png",
+              "Idle/animations/dance/north-east/frame_003.png",
+              "Idle/animations/dance/north-east/frame_004.png",
+              "Idle/animations/dance/north-east/frame_005.png",
+              "Idle/animations/dance/north-east/frame_006.png",
+              "Idle/animations/dance/north-east/frame_007.png",
+              "Idle/animations/dance/north-east/frame_008.png"
+            ],
+            "north": [
+              "Idle/animations/dance/north/frame_000.png",
+              "Idle/animations/dance/north/frame_001.png",
+              "Idle/animations/dance/north/frame_002.png",
+              "Idle/animations/dance/north/frame_003.png",
+              "Idle/animations/dance/north/frame_004.png",
+              "Idle/animations/dance/north/frame_005.png",
+              "Idle/animations/dance/north/frame_006.png",
+              "Idle/animations/dance/north/frame_007.png",
+              "Idle/animations/dance/north/frame_008.png"
+            ],
+            "north-west": [
+              "Idle/animations/dance/north-west/frame_000.png",
+              "Idle/animations/dance/north-west/frame_001.png",
+              "Idle/animations/dance/north-west/frame_002.png",
+              "Idle/animations/dance/north-west/frame_003.png",
+              "Idle/animations/dance/north-west/frame_004.png",
+              "Idle/animations/dance/north-west/frame_005.png",
+              "Idle/animations/dance/north-west/frame_006.png",
+              "Idle/animations/dance/north-west/frame_007.png",
+              "Idle/animations/dance/north-west/frame_008.png"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "character": {
+        "id": "8ebdeba2-dd11-4649-a39a-f2ff64b89420",
+        "name": "Dress White Purple",
+        "prompt": "cute anthropomorphic black cat with big green eyes, wearing a black tuxedo with a white shirt and a red bow tie, standing upright, chibi proportions",
+        "size": {
+          "width": 64,
+          "height": 64
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "low top-down",
+        "created_at": "2026-10-20T11:44:27.251146+00:00"
+      },
+      "folder": "Dress_White_Purple",
+      "frames": {
+        "rotations": {
+          "south": "Dress_White_Purple/rotations/south.png",
+          "south-east": "Dress_White_Purple/rotations/south-east.png",
+          "east": "Dress_White_Purple/rotations/east.png",
+          "north-east": "Dress_White_Purple/rotations/north-east.png",
+          "north": "Dress_White_Purple/rotations/north.png",
+          "north-west": "Dress_White_Purple/rotations/north-west.png",
+          "west": "Dress_White_Purple/rotations/west.png",
+          "south-west": "Dress_White_Purple/rotations/south-west.png"
+        },
+        "animations": {
+          "dance": {
+            "east": [
+              "Dress_White_Purple/animations/dance/east/frame_000.png",
+              "Dress_White_Purple/animations/dance/east/frame_001.png",
+              "Dress_White_Purple/animations/dance/east/frame_002.png",
+              "Dress_White_Purple/animations/dance/east/frame_003.png",
+              "Dress_White_Purple/animations/dance/east/frame_004.png",
+              "Dress_White_Purple/animations/dance/east/frame_005.png",
+              "Dress_White_Purple/animations/dance/east/frame_006.png",
+              "Dress_White_Purple/animations/dance/east/frame_007.png",
+              "Dress_White_Purple/animations/dance/east/frame_008.png"
+            ],
+            "north-east": [
+              "Dress_White_Purple/animations/dance/north-east/frame_000.png",
+              "Dress_White_Purple/animations/dance/north-east/frame_001.png",
+              "Dress_White_Purple/animations/dance/north-east/frame_002.png",
+              "Dress_White_Purple/animations/dance/north-east/frame_003.png",
+              "Dress_White_Purple/animations/dance/north-east/frame_004.png",
+              "Dress_White_Purple/animations/dance/north-east/frame_005.png",
+              "Dress_White_Purple/animations/dance/north-east/frame_006.png",
+              "Dress_White_Purple/animations/dance/north-east/frame_007.png",
+              "Dress_White_Purple/animations/dance/north-east/frame_008.png"
+            ],
+            "west": [
+              "Dress_White_Purple/animations/dance/west/frame_000.png",
+              "Dress_White_Purple/animations/dance/west/frame_001.png",
+              "Dress_White_Purple/animations/dance/west/frame_002.png",
+              "Dress_White_Purple/animations/dance/west/frame_003.png",
+              "Dress_White_Purple/animations/dance/west/frame_004.png",
+              "Dress_White_Purple/animations/dance/west/frame_005.png",
+              "Dress_White_Purple/animations/dance/west/frame_006.png",
+              "Dress_White_Purple/animations/dance/west/frame_007.png",
+              "Dress_White_Purple/animations/dance/west/frame_008.png"
+            ],
+            "south-west": [
+              "Dress_White_Purple/animations/dance/south-west/frame_000.png",
+              "Dress_White_Purple/animations/dance/south-west/frame_001.png",
+              "Dress_White_Purple/animations/dance/south-west/frame_002.png",
+              "Dress_White_Purple/animations/dance/south-west/frame_003.png",
+              "Dress_White_Purple/animations/dance/south-west/frame_004.png",
+              "Dress_White_Purple/animations/dance/south-west/frame_005.png",
+              "Dress_White_Purple/animations/dance/south-west/frame_006.png",
+              "Dress_White_Purple/animations/dance/south-west/frame_007.png",
+              "Dress_White_Purple/animations/dance/south-west/frame_008.png"
+            ],
+            "south": [
+              "Dress_White_Purple/animations/dance/south/frame_000.png",
+              "Dress_White_Purple/animations/dance/south/frame_001.png",
+              "Dress_White_Purple/animations/dance/south/frame_002.png",
+              "Dress_White_Purple/animations/dance/south/frame_003.png",
+              "Dress_White_Purple/animations/dance/south/frame_004.png",
+              "Dress_White_Purple/animations/dance/south/frame_005.png",
+              "Dress_White_Purple/animations/dance/south/frame_006.png",
+              "Dress_White_Purple/animations/dance/south/frame_007.png",
+              "Dress_White_Purple/animations/dance/south/frame_008.png"
+            ],
+            "north": [
+              "Dress_White_Purple/animations/dance/north/frame_000.png",
+              "Dress_White_Purple/animations/dance/north/frame_001.png",
+              "Dress_White_Purple/animations/dance/north/frame_002.png",
+              "Dress_White_Purple/animations/dance/north/frame_003.png",
+              "Dress_White_Purple/animations/dance/north/frame_004.png",
+              "Dress_White_Purple/animations/dance/north/frame_005.png",
+              "Dress_White_Purple/animations/dance/north/frame_006.png",
+              "Dress_White_Purple/animations/dance/north/frame_007.png",
+              "Dress_White_Purple/animations/dance/north/frame_008.png"
+            ],
+            "north-west": [
+              "Dress_White_Purple/animations/dance/north-west/frame_000.png",
+              "Dress_White_Purple/animations/dance/north-west/frame_001.png",
+              "Dress_White_Purple/animations/dance/north-west/frame_002.png",
+              "Dress_White_Purple/animations/dance/north-west/frame_003.png",
+              "Dress_White_Purple/animations/dance/north-west/frame_004.png",
+              "Dress_White_Purple/animations/dance/north-west/frame_005.png",
+              "Dress_White_Purple/animations/dance/north-west/frame_006.png",
+              "Dress_White_Purple/animations/dance/north-west/frame_007.png",
+              "Dress_White_Purple/animations/dance/north-west/frame_008.png"
+            ],
+            "south-east": [
+              "Dress_White_Purple/animations/dance/south-east/frame_000.png",
+              "Dress_White_Purple/animations/dance/south-east/frame_001.png",
+              "Dress_White_Purple/animations/dance/south-east/frame_002.png",
+              "Dress_White_Purple/animations/dance/south-east/frame_003.png",
+              "Dress_White_Purple/animations/dance/south-east/frame_004.png",
+              "Dress_White_Purple/animations/dance/south-east/frame_005.png",
+              "Dress_White_Purple/animations/dance/south-east/frame_006.png",
+              "Dress_White_Purple/animations/dance/south-east/frame_007.png",
+              "Dress_White_Purple/animations/dance/south-east/frame_008.png"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-10-24T12:13:11.852259"
+}

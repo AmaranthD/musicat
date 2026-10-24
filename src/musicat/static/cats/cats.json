@@ -1,29 +1,17 @@
 {
-  "cell": 40,
+  "cell": 84,
   "colors": {
-    "orange_0": {
-      "sitting": 50,
-      "looking": 40,
-      "laying": 64,
-      "walking": 32,
-      "running": 40,
-      "running2": 64
+    "tuxedo_0": {
+      "cell": 84,
+      "dance": 9
     },
-    "grey_0": {
-      "sitting": 50,
-      "looking": 40,
-      "laying": 64,
-      "walking": 32,
-      "running": 40,
-      "running2": 64
+    "dress_purple_0": {
+      "cell": 84,
+      "dance": 9
     },
-    "calico_0": {
-      "sitting": 50,
-      "looking": 40,
-      "laying": 64,
-      "walking": 32,
-      "running": 40,
-      "running2": 64
+    "formal_kitten_0": {
+      "cell": 84,
+      "dance": 9
     }
   }
 }
