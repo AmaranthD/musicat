@@ -270,3 +270,19 @@ def test_cover_is_private_per_owner(client, as_user, make_mp3):
 
     as_user("user-a", "a@example.com")
     assert client.get(f"/api/tracks/{a_track}/cover").content == png_a
+
+
+def test_session_cookie_is_secure_behind_https_proxy(signed_client):
+    client, token_for = signed_client
+    token = token_for("proxy-user", "proxy@example.com")
+
+    response = client.post(
+        "/api/auth/session",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "X-Forwarded-Proto": "https",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "secure" in response.headers["set-cookie"].lower()

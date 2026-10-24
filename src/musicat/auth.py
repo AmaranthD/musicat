@@ -194,6 +194,13 @@ def require_user(request: Request) -> CurrentUser:
     return user
 
 
+def _is_secure_request(request: Request) -> bool:
+    forwarded = (
+        request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    )
+    return request.url.scheme == "https" or forwarded == "https"
+
+
 def set_session_cookie(response: Response, request: Request, token: str) -> None:
     try:
         payload = verify_token(token)
@@ -206,7 +213,7 @@ def set_session_cookie(response: Response, request: Request, token: str) -> None
         max_age=max_age,
         httponly=True,
         samesite="lax",
-        secure=request.url.scheme == "https",
+        secure=_is_secure_request(request),
         path="/",
     )
 
