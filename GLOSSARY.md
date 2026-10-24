@@ -1,6 +1,6 @@
 # Musicat
 
-Aplicativo local de usuário único para importar, organizar e tocar músicas baixadas, com um palco de gatinhos que dançam sincronizados ao áudio.
+Aplicativo multiusuário auto-hospedado para importar, organizar e tocar músicas baixadas, com compartilhamento de Playlists e um palco de gatinhos que dançam sincronizados ao áudio.
 
 ## Language
 
@@ -12,8 +12,32 @@ _Avoid_: música (como a entidade), arquivo, song
 O conjunto de todas as Faixas importadas e guardadas no servidor.
 _Avoid_: coleção, acervo, library
 
+**Usuário**:
+Uma conta autenticada pelo Supabase. A identidade é o `sub` do token, não o e-mail.
+_Avoid_: conta (como identidade), cliente, pessoa
+
+**Sessão**:
+O token emitido pelo Supabase que prova a identidade de um Usuário; enviado como Bearer nas chamadas da API.
+_Avoid_: login, cookie
+
+**Dono**:
+O Usuário que criou uma Playlist. Tem controle total sobre ela: renomear, apagar, mudar visibilidade, convidar e editar Faixas.
+_Avoid_: proprietário, admin, criador
+
+**Convidado**:
+Um Usuário convidado pelo Dono para uma Playlist Privada. Pode ver, ouvir e editar as Faixas dela.
+_Avoid_: colaborador, membro, participante
+
+**Playlist Pública**:
+Uma Playlist que qualquer Usuário autenticado pode ver, ouvir e cujas Faixas pode editar. Só o Dono renomeia, apaga, muda a visibilidade e convida.
+_Avoid_: playlist aberta, playlist compartilhada
+
+**Playlist Privada**:
+Uma Playlist visível e editável apenas pelo Dono e pelos Convidados.
+_Avoid_: playlist fechada, playlist pessoal
+
 **Playlist**:
-Uma sequência ordenada e nomeada de Faixas, criada pelo usuário ou gerada.
+Uma sequência ordenada e nomeada de Faixas, criada pelo Usuário ou gerada, com visibilidade Pública ou Privada.
 _Avoid_: lista, setlist, fila
 
 **Fila** (Queue):

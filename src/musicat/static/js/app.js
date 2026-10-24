@@ -1,4 +1,5 @@
 import { initStage } from "./stage.js";
+import { apiFetch, initAuth } from "./auth.js";
 
 const audio = document.getElementById("audio");
 const dropzone = document.getElementById("dropzone");
@@ -46,6 +47,15 @@ const playlistTracks = document.getElementById("playlist-tracks");
 const playlistPlay = document.getElementById("playlist-play");
 const playlistRename = document.getElementById("playlist-rename");
 const playlistDelete = document.getElementById("playlist-delete");
+const playlistVisibility = document.getElementById("playlist-visibility");
+const playlistVisibilityBadge = document.getElementById("playlist-visibility-badge");
+const playlistVisibilityEdit = document.getElementById("playlist-visibility-edit");
+const playlistShareToggle = document.getElementById("playlist-share-toggle");
+const playlistShare = document.getElementById("playlist-share");
+const inviteForm = document.getElementById("invite-form");
+const inviteEmail = document.getElementById("invite-email");
+const inviteList = document.getElementById("invite-list");
+const accountEmail = document.getElementById("account-email");
 
 const state = {
   tracks: [],
@@ -72,8 +82,8 @@ function ensureAudioGraph() {
   audioContext = new AudioContext();
   sourceNode = audioContext.createMediaElementSource(audio);
   const analyser = audioContext.createAnalyser();
-  analyser.fftSize = 1024;
-  analyser.smoothingTimeConstant = 0.75;
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0.5;
   sourceNode.connect(analyser);
   analyser.connect(audioContext.destination);
   window.__musicatAudio = { audioContext, sourceNode, analyser };
@@ -254,6 +264,9 @@ function renderTracks(tracks) {
       continue;
     }
 
+    const editButton = track.owned
+      ? '<button class="track__edit" title="Editar metadados" aria-label="Editar">✎</button>'
+      : "";
     item.innerHTML = `
       <button class="track__play" title="Tocar" aria-label="Tocar">▶</button>
       <div class="track__cover" style="${coverStyle(track)}" aria-hidden="true"></div>
@@ -263,17 +276,18 @@ function renderTracks(tracks) {
       </div>
       <span class="track__duration"></span>
       <button class="track__add" title="Adicionar à playlist" aria-label="Adicionar à playlist">＋</button>
-      <button class="track__edit" title="Editar metadados" aria-label="Editar">✎</button>
+      ${editButton}
     `;
     item.querySelector(".track__title").textContent = track.title || track.filename;
     const sub = [track.artist, track.album].filter(Boolean).join(" • ");
-    item.querySelector(".track__sub").textContent = sub || track.filename;
+    const shared = track.shared ? " • compartilhada" : "";
+    item.querySelector(".track__sub").textContent = (sub || track.filename) + shared;
     item.querySelector(".track__duration").textContent = formatTime(track.duration);
     item.querySelector(".track__play").addEventListener("click", () =>
       playQueue(state.tracks, state.tracks.indexOf(track)),
     );
     item.querySelector(".track__add").addEventListener("click", () => addToPlaylist(track.id));
-    item.querySelector(".track__edit").addEventListener("click", () => {
+    item.querySelector(".track__edit")?.addEventListener("click", () => {
       editingId = track.id;
       renderTracks(tracks);
     });
@@ -304,7 +318,7 @@ function editForm(track) {
     event.preventDefault();
     const payload = {};
     for (const key of ["title", "artist", "album"]) payload[key] = form.elements[key].value;
-    await fetch(`/api/tracks/${track.id}`, {
+    await apiFetch(`/api/tracks/${track.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -313,7 +327,7 @@ function editForm(track) {
     if (coverFile) {
       const coverForm = new FormData();
       coverForm.append("cover", coverFile);
-      await fetch(`/api/tracks/${track.id}/cover`, { method: "PUT", body: coverForm });
+      await apiFetch(`/api/tracks/${track.id}/cover`, { method: "PUT", body: coverForm });
     }
     editingId = null;
     loadLibrary();
@@ -337,7 +351,7 @@ function renderUnrecognized(items) {
     reprocess.textContent = "Reprocessar";
     reprocess.addEventListener("click", async () => {
       const result = await (
-        await fetch(`/api/unrecognized/${item.id}/reprocess`, { method: "POST" })
+        await apiFetch(`/api/unrecognized/${item.id}/reprocess`, { method: "POST" })
       ).json();
       showToast(result.message || "reprocessado");
       loadLibrary();
@@ -345,7 +359,7 @@ function renderUnrecognized(items) {
     const remove = document.createElement("button");
     remove.textContent = "Remover";
     remove.addEventListener("click", async () => {
-      await fetch(`/api/unrecognized/${item.id}`, { method: "DELETE" });
+      await apiFetch(`/api/unrecognized/${item.id}`, { method: "DELETE" });
       loadLibrary();
     });
     entry.append(label, reprocess, remove);
@@ -355,7 +369,8 @@ function renderUnrecognized(items) {
 
 async function loadLibrary() {
   const params = new URLSearchParams({ search: searchInput.value, sort: sortSelect.value });
-  const response = await fetch(`/api/library?${params}`);
+  const response = await apiFetch(`/api/library?${params}`);
+  if (!response.ok) return;
   const data = await response.json();
   state.tracks = data.tracks;
   renderTracks(data.tracks);
@@ -363,7 +378,9 @@ async function loadLibrary() {
 }
 
 async function loadPlaylists() {
-  const data = await (await fetch("/api/playlists")).json();
+  const response = await apiFetch("/api/playlists");
+  if (!response.ok) return;
+  const data = await response.json();
   state.playlists = data.playlists;
   renderPlaylists();
   renderTargetSelect();
@@ -378,7 +395,9 @@ function renderPlaylists() {
   for (const playlist of state.playlists) {
     const item = document.createElement("li");
     item.className = "playlist-chip" + (state.detail?.id === playlist.id ? " is-current" : "");
-    item.textContent = `${playlist.name} (${playlist.track_count})`;
+    const icon = playlist.visibility === "public" ? "🌐" : "🔒";
+    const shared = playlist.role && playlist.role !== "owner" ? " · compartilhada" : "";
+    item.textContent = `${icon} ${playlist.name} (${playlist.track_count})${shared}`;
     item.addEventListener("click", () => openPlaylist(playlist.id));
     playlistList.appendChild(item);
   }
@@ -397,9 +416,14 @@ function renderTargetSelect() {
 }
 
 async function openPlaylist(id) {
-  const response = await fetch(`/api/playlists/${id}`);
+  const previousId = state.detail?.id;
+  const response = await apiFetch(`/api/playlists/${id}`);
   if (!response.ok) return;
   state.detail = await response.json();
+  if (previousId !== state.detail.id) {
+    playlistShare.hidden = true;
+    inviteList.innerHTML = "";
+  }
   renderDetail();
   renderPlaylists();
 }
@@ -409,6 +433,14 @@ function renderDetail() {
   playlistDetail.hidden = !detail;
   if (!detail) return;
   playlistDetailName.textContent = detail.name;
+  const isOwner = Boolean(detail.is_owner);
+  playlistVisibilityBadge.textContent =
+    detail.visibility === "public" ? "🌐 Pública" : "🔒 Privada";
+  playlistVisibilityEdit.value = detail.visibility;
+  playlistRename.hidden = !isOwner;
+  playlistDelete.hidden = !isOwner;
+  playlistShareToggle.hidden = !isOwner;
+  if (!isOwner) playlistShare.hidden = true;
   playlistTracks.innerHTML = "";
   detail.tracks.forEach((track, index) => {
     const item = document.createElement("li");
@@ -420,7 +452,7 @@ function renderDetail() {
     const remove = document.createElement("button");
     remove.textContent = "✕";
     remove.addEventListener("click", async () => {
-      await fetch(`/api/playlists/${detail.id}/tracks/${track.id}`, { method: "DELETE" });
+      await apiFetch(`/api/playlists/${detail.id}/tracks/${track.id}`, { method: "DELETE" });
       openPlaylist(detail.id);
       loadPlaylists();
     });
@@ -438,7 +470,7 @@ function renderDetail() {
       const ids = detail.tracks.map((entry) => entry.id);
       const [moved] = ids.splice(from, 1);
       ids.splice(index, 0, moved);
-      await fetch(`/api/playlists/${detail.id}/tracks`, {
+      await apiFetch(`/api/playlists/${detail.id}/tracks`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ track_ids: ids }),
@@ -451,23 +483,71 @@ function renderDetail() {
   });
 }
 
+async function responseError(response) {
+  try {
+    const data = await response.json();
+    return data.detail || "Não foi possível concluir.";
+  } catch (error) {
+    return "Não foi possível concluir.";
+  }
+}
+
+async function loadInvites() {
+  const detail = state.detail;
+  if (!detail || !detail.is_owner) return;
+  const response = await apiFetch(`/api/playlists/${detail.id}/invites`);
+  if (!response.ok) return;
+  const data = await response.json();
+  inviteList.innerHTML = "";
+  if (!data.invites.length) {
+    const empty = document.createElement("li");
+    empty.className = "invite-list__empty";
+    empty.textContent = "Ninguém convidado ainda.";
+    inviteList.appendChild(empty);
+    return;
+  }
+  for (const invite of data.invites) {
+    const item = document.createElement("li");
+    const label = document.createElement("span");
+    label.textContent = invite.email;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "✕";
+    remove.title = "Remover convite";
+    remove.addEventListener("click", async () => {
+      await apiFetch(
+        `/api/playlists/${detail.id}/invites/${encodeURIComponent(invite.email)}`,
+        { method: "DELETE" },
+      );
+      loadInvites();
+    });
+    item.append(label, remove);
+    inviteList.appendChild(item);
+  }
+}
+
 async function addToPlaylist(trackId) {
   const targetId = playlistTarget.value;
   if (!targetId) return;
-  await fetch(`/api/playlists/${targetId}/tracks`, {
+  const response = await apiFetch(`/api/playlists/${targetId}/tracks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ track_id: trackId }),
   });
+  if (!response.ok) {
+    showToast(await responseError(response));
+    return;
+  }
   if (state.detail && String(state.detail.id) === targetId) openPlaylist(state.detail.id);
   loadPlaylists();
 }
 
 let saveTimer;
 function savePlayer() {
+  if (!appStarted) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    fetch("/api/player", {
+    apiFetch("/api/player", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       keepalive: true,
@@ -482,7 +562,9 @@ function savePlayer() {
 }
 
 async function restorePlayer() {
-  const data = await (await fetch("/api/player")).json();
+  const response = await apiFetch("/api/player");
+  if (!response.ok) return;
+  const data = await response.json();
   const volume = data.volume ?? 1;
   volumeInput.value = String(volume);
   audio.volume = volume;
@@ -509,13 +591,53 @@ playlistForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = playlistName.value.trim();
   if (!name) return;
-  await fetch("/api/playlists", {
+  await apiFetch("/api/playlists", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, visibility: playlistVisibility.value }),
   });
   playlistName.value = "";
   loadPlaylists();
+});
+
+playlistShareToggle.addEventListener("click", () => {
+  if (!state.detail) return;
+  playlistShare.hidden = !playlistShare.hidden;
+  if (!playlistShare.hidden) loadInvites();
+});
+
+playlistVisibilityEdit.addEventListener("change", async () => {
+  if (!state.detail) return;
+  const response = await apiFetch(`/api/playlists/${state.detail.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ visibility: playlistVisibilityEdit.value }),
+  });
+  if (!response.ok) {
+    showToast(await responseError(response));
+    return;
+  }
+  openPlaylist(state.detail.id);
+  loadPlaylists();
+});
+
+inviteForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!state.detail) return;
+  const email = inviteEmail.value.trim();
+  if (!email) return;
+  const response = await apiFetch(`/api/playlists/${state.detail.id}/invites`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!response.ok) {
+    showToast(await responseError(response));
+    return;
+  }
+  inviteEmail.value = "";
+  showToast("Convite enviado.");
+  loadInvites();
 });
 
 randomForm.addEventListener("submit", async (event) => {
@@ -525,13 +647,16 @@ randomForm.addEventListener("submit", async (event) => {
     artist: randomArtist.value.trim(),
     format: randomFormat.value,
   };
-  const created = await (
-    await fetch("/api/playlists/random", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    })
-  ).json();
+  const response = await apiFetch("/api/playlists/random", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    showToast(await responseError(response));
+    return;
+  }
+  const created = await response.json();
   randomSize.value = "";
   randomArtist.value = "";
   await loadPlaylists();
@@ -545,7 +670,7 @@ playlistPlay.addEventListener("click", () => {
 playlistRename.addEventListener("click", async () => {
   const name = prompt("Novo nome da playlist:", state.detail?.name || "");
   if (!name) return;
-  await fetch(`/api/playlists/${state.detail.id}`, {
+  await apiFetch(`/api/playlists/${state.detail.id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
@@ -556,7 +681,7 @@ playlistRename.addEventListener("click", async () => {
 
 playlistDelete.addEventListener("click", async () => {
   if (!state.detail) return;
-  await fetch(`/api/playlists/${state.detail.id}`, { method: "DELETE" });
+  await apiFetch(`/api/playlists/${state.detail.id}`, { method: "DELETE" });
   state.detail = null;
   renderDetail();
   loadPlaylists();
@@ -762,10 +887,48 @@ sortSelect.addEventListener("change", loadLibrary);
 window.addEventListener("beforeunload", savePlayer);
 window.addEventListener("resize", sizeWaveform);
 
+let appStarted = false;
+
+async function startApp(user) {
+  accountEmail.textContent = user?.email || "conta";
+  if (appStarted) return;
+  appStarted = true;
+  try {
+    await Promise.all([loadLibrary(), loadPlaylists(), restorePlayer()]);
+  } catch (error) {
+    showToast("Não foi possível carregar seus dados.");
+  }
+}
+
+function stopApp() {
+  appStarted = false;
+  audio.pause();
+  audio.removeAttribute("src");
+  audio.load();
+  state.tracks = [];
+  state.queue = [];
+  state.baseQueue = [];
+  state.currentIndex = -1;
+  state.playlists = [];
+  state.detail = null;
+  editingId = null;
+  searchInput.value = "";
+  sortSelect.value = "imported_at";
+  playlistName.value = "";
+  randomSize.value = "";
+  randomArtist.value = "";
+  randomFormat.value = "";
+  inviteEmail.value = "";
+  renderTracks([]);
+  renderPlaylists();
+  renderDetail();
+  renderQueue();
+  renderPlayer();
+}
+
 renderToggles();
 initStage();
 sizeWaveform();
 requestAnimationFrame(drawWaveform);
-loadLibrary();
-loadPlaylists();
-restorePlayer();
+
+initAuth({ onSignedIn: startApp, onSignedOut: stopApp });

@@ -1,14 +1,23 @@
 from datetime import datetime, timezone
 import random
 
+from . import access
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def create(connection, name: str):
+def create(
+    connection, name: str, owner_id: str, visibility: str = "private"
+) -> object:
+    now = _now()
     cursor = connection.execute(
-        "INSERT INTO playlists (name, created_at) VALUES (?, ?)", (name, _now())
+        """
+        INSERT INTO playlists (owner_id, name, visibility, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (owner_id, name, visibility, now, now),
     )
     connection.commit()
     return connection.execute(
@@ -16,15 +25,18 @@ def create(connection, name: str):
     ).fetchone()
 
 
-def list_all(connection):
+def list_for_user(connection, user):
+    where, params = access.playlist_access_where("p", user)
     return connection.execute(
-        """
+        f"""
         SELECT p.*, COUNT(pt.track_id) AS track_count
         FROM playlists p
         LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.id
+        WHERE {where}
         GROUP BY p.id
         ORDER BY p.created_at DESC
-        """
+        """,
+        params,
     ).fetchall()
 
 
@@ -48,7 +60,19 @@ def get(connection, playlist_id: int):
 
 def rename(connection, playlist_id: int, name: str):
     connection.execute(
-        "UPDATE playlists SET name = ? WHERE id = ?", (name, playlist_id)
+        "UPDATE playlists SET name = ?, updated_at = ? WHERE id = ?",
+        (name, _now(), playlist_id),
+    )
+    connection.commit()
+    return connection.execute(
+        "SELECT * FROM playlists WHERE id = ?", (playlist_id,)
+    ).fetchone()
+
+
+def set_visibility(connection, playlist_id: int, visibility: str):
+    connection.execute(
+        "UPDATE playlists SET visibility = ?, updated_at = ? WHERE id = ?",
+        (visibility, _now(), playlist_id),
     )
     connection.commit()
     return connection.execute(
@@ -59,6 +83,9 @@ def rename(connection, playlist_id: int, name: str):
 def delete(connection, playlist_id: int) -> None:
     connection.execute(
         "DELETE FROM playlist_tracks WHERE playlist_id = ?", (playlist_id,)
+    )
+    connection.execute(
+        "DELETE FROM playlist_invites WHERE playlist_id = ?", (playlist_id,)
     )
     connection.execute("DELETE FROM playlists WHERE id = ?", (playlist_id,))
     connection.commit()
@@ -79,6 +106,9 @@ def add_track(connection, playlist_id: int, track_id: int) -> None:
         """,
         (playlist_id, track_id, row["next"]),
     )
+    connection.execute(
+        "UPDATE playlists SET updated_at = ? WHERE id = ?", (_now(), playlist_id)
+    )
     connection.commit()
 
 
@@ -86,6 +116,9 @@ def remove_track(connection, playlist_id: int, track_id: int) -> None:
     connection.execute(
         "DELETE FROM playlist_tracks WHERE playlist_id = ? AND track_id = ?",
         (playlist_id, track_id),
+    )
+    connection.execute(
+        "UPDATE playlists SET updated_at = ? WHERE id = ?", (_now(), playlist_id)
     )
     connection.commit()
 
@@ -108,26 +141,27 @@ def reorder(connection, playlist_id: int, track_ids: list[int]) -> None:
             """,
             (position, playlist_id, track_id),
         )
+    connection.execute(
+        "UPDATE playlists SET updated_at = ? WHERE id = ?", (_now(), playlist_id)
+    )
     connection.commit()
 
 
 def random_track_ids(
     connection,
+    user,
     artist: str | None = None,
     fmt: str | None = None,
     size: int | None = None,
 ) -> list[int]:
-    query = "SELECT id FROM tracks"
-    clauses: list[str] = []
-    params: list[str] = []
+    where, params = access.track_access_where("t", user)
+    query = f"SELECT t.id FROM tracks t WHERE {where}"
     if artist:
-        clauses.append("artist LIKE ?")
+        query += " AND t.artist LIKE ?"
         params.append(f"%{artist}%")
     if fmt:
-        clauses.append("format = ?")
+        query += " AND t.format = ?"
         params.append(fmt)
-    if clauses:
-        query += " WHERE " + " AND ".join(clauses)
 
     ids = [row["id"] for row in connection.execute(query, params)]
     random.shuffle(ids)
@@ -145,4 +179,48 @@ def add_tracks(connection, playlist_id: int, track_ids: list[int]) -> None:
             """,
             (playlist_id, track_id, position),
         )
+    connection.execute(
+        "UPDATE playlists SET updated_at = ? WHERE id = ?", (_now(), playlist_id)
+    )
+    connection.commit()
+
+
+def add_invite(
+    connection,
+    playlist_id: int,
+    user_id: str,
+    email: str,
+    invited_by: str,
+) -> object:
+    normalized = email.strip().lower()
+    connection.execute(
+        """
+        INSERT INTO playlist_invites
+            (playlist_id, user_id, email, invited_by, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(playlist_id, user_id) DO UPDATE SET
+            email = excluded.email,
+            invited_by = excluded.invited_by
+        """,
+        (playlist_id, user_id, normalized, invited_by, _now()),
+    )
+    connection.commit()
+    return connection.execute(
+        "SELECT * FROM playlist_invites WHERE playlist_id = ? AND user_id = ?",
+        (playlist_id, user_id),
+    ).fetchone()
+
+
+def list_invites(connection, playlist_id: int):
+    return connection.execute(
+        "SELECT * FROM playlist_invites WHERE playlist_id = ? ORDER BY email",
+        (playlist_id,),
+    ).fetchall()
+
+
+def remove_invite(connection, playlist_id: int, email: str) -> None:
+    connection.execute(
+        "DELETE FROM playlist_invites WHERE playlist_id = ? AND email = ?",
+        (playlist_id, email.strip().lower()),
+    )
     connection.commit()

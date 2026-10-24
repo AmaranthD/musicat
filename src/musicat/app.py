@@ -2,12 +2,13 @@ from pathlib import Path
 import json
 import mimetypes
 
-from fastapi import Body, FastAPI, File, HTTPException, UploadFile
+from fastapi import Body, Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import config
-from .library import db, importer, playlists
+from . import auth, config
+from .auth import CurrentUser, require_user
+from .library import access, db, importer, playlists
 from .library import metadata as metadata_reader
 from .models import Track, UnrecognizedItem
 
@@ -20,18 +21,39 @@ SORT_COLUMNS = {
     "imported_at": "imported_at",
 }
 EDITABLE_FIELDS = {"title", "artist", "album"}
+VISIBILITIES = {"public", "private"}
 
 
-def _track_dict(row) -> dict:
+def _cover_path(content_hash: str, owner_id: str) -> Path:
+    return config.library_dir() / f"{content_hash}.{owner_id}.cover"
+
+
+def _track_dict(row, user: CurrentUser) -> dict:
     data = Track.from_row(row).to_dict()
-    data["has_cover"] = (config.library_dir() / f"{data['content_hash']}.cover").exists()
+    owner_id = data.pop("owner_id")
+    data["owned"] = owner_id == user.id
+    data["shared"] = not data["owned"]
+    data["has_cover"] = _cover_path(data["content_hash"], owner_id).exists()
     return data
 
 
-def _playlist_dict(playlist, tracks) -> dict:
+def _playlist_dict(playlist, tracks, user: CurrentUser, role: str) -> dict:
     data = dict(playlist)
-    data["tracks"] = [_track_dict(row) for row in tracks]
+    data.pop("owner_id", None)
+    data["role"] = role
+    data["is_owner"] = role == "owner"
+    data["tracks"] = [_track_dict(row, user) for row in tracks]
     return data
+
+
+def _owned_unrecognized(connection, item_id: int, user: CurrentUser):
+    row = connection.execute(
+        "SELECT * FROM unrecognized WHERE id = ? AND owner_id = ?",
+        (item_id, user.id),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="item não encontrado")
+    return row
 
 
 def create_app() -> FastAPI:
@@ -41,12 +63,52 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Musicat")
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
     @app.get("/")
     def index() -> FileResponse:
         return FileResponse(STATIC_DIR / "index.html")
 
+    @app.get("/api/auth/config")
+    def auth_config() -> dict:
+        return {
+            "supabase_url": config.supabase_url(),
+            "supabase_key": config.supabase_key(),
+        }
+
+    @app.post("/api/auth/session")
+    def create_session(
+        request: Request,
+        response: Response,
+        user: CurrentUser = Depends(require_user),
+    ) -> dict:
+        token = auth.request_token(request)
+        if token:
+            auth.set_session_cookie(response, request, token)
+        return {"id": user.id, "email": user.email}
+
+    @app.delete("/api/auth/session")
+    def destroy_session(response: Response) -> dict:
+        auth.clear_session_cookie(response)
+        return {"status": "signed-out"}
+
+    @app.get("/api/me")
+    def me(user: CurrentUser = Depends(require_user)) -> dict:
+        return {"id": user.id, "email": user.email}
+
     @app.post("/api/import")
-    async def import_tracks(files: list[UploadFile] = File(...)) -> dict:
+    async def import_tracks(
+        files: list[UploadFile] = File(...),
+        user: CurrentUser = Depends(require_user),
+    ) -> dict:
         imported: list[dict] = []
         duplicates: list[dict] = []
         unrecognized: list[dict] = []
@@ -54,7 +116,7 @@ def create_app() -> FastAPI:
             for upload in files:
                 data = await upload.read()
                 result = importer.import_file(
-                    upload.filename or "sem-nome", data, connection
+                    upload.filename or "sem-nome", data, connection, user.id
                 )
                 {
                     "imported": imported,
@@ -68,37 +130,45 @@ def create_app() -> FastAPI:
         }
 
     @app.get("/api/library")
-    def library(search: str = "", sort: str = "imported_at") -> dict:
+    def library(
+        search: str = "",
+        sort: str = "imported_at",
+        user: CurrentUser = Depends(require_user),
+    ) -> dict:
         column = SORT_COLUMNS.get(sort, "imported_at")
         direction = "DESC" if column == "imported_at" else "ASC"
+        where, params = access.track_access_where("t", user)
         with db.connection() as connection:
-            query = "SELECT * FROM tracks"
-            params: list[str] = []
+            query = f"SELECT t.* FROM tracks t WHERE {where}"
             if search:
-                query += " WHERE title LIKE ? OR artist LIKE ? OR album LIKE ?"
+                query += (
+                    " AND (t.title LIKE ? OR t.artist LIKE ? OR t.album LIKE ?)"
+                )
                 term = f"%{search}%"
-                params = [term, term, term]
-            query += f" ORDER BY {column} {direction}"
-            tracks = [_track_dict(row) for row in connection.execute(query, params)]
+                params.extend([term, term, term])
+            query += f" ORDER BY t.{column} {direction}"
+            tracks = [_track_dict(row, user) for row in connection.execute(query, params)]
             unrecognized = [
                 UnrecognizedItem.from_row(row).to_dict()
                 for row in connection.execute(
-                    "SELECT * FROM unrecognized ORDER BY imported_at DESC"
+                    "SELECT * FROM unrecognized WHERE owner_id = ? "
+                    "ORDER BY imported_at DESC",
+                    (user.id,),
                 )
             ]
         return {"tracks": tracks, "unrecognized": unrecognized}
 
     @app.patch("/api/tracks/{track_id}")
-    def update_track(track_id: int, payload: dict = Body(...)) -> dict:
+    def update_track(
+        track_id: int,
+        payload: dict = Body(...),
+        user: CurrentUser = Depends(require_user),
+    ) -> dict:
         fields = {key: value for key, value in payload.items() if key in EDITABLE_FIELDS}
         if not fields:
             raise HTTPException(status_code=400, detail="nenhum campo editável enviado")
         with db.connection() as connection:
-            row = connection.execute(
-                "SELECT * FROM tracks WHERE id = ?", (track_id,)
-            ).fetchone()
-            if row is None:
-                raise HTTPException(status_code=404, detail="faixa não encontrada")
+            access.require_owned_track(connection, track_id, user)
             assignments = ", ".join(f"{key} = ?" for key in fields)
             connection.execute(
                 f"UPDATE tracks SET {assignments} WHERE id = ?",
@@ -108,16 +178,14 @@ def create_app() -> FastAPI:
             updated = connection.execute(
                 "SELECT * FROM tracks WHERE id = ?", (track_id,)
             ).fetchone()
-        return _track_dict(updated)
+        return _track_dict(updated, user)
 
     @app.get("/api/tracks/{track_id}/stream")
-    def stream_track(track_id: int) -> FileResponse:
+    def stream_track(
+        track_id: int, user: CurrentUser = Depends(require_user)
+    ) -> FileResponse:
         with db.connection() as connection:
-            row = connection.execute(
-                "SELECT stored_name FROM tracks WHERE id = ?", (track_id,)
-            ).fetchone()
-        if row is None:
-            raise HTTPException(status_code=404, detail="faixa não encontrada")
+            row = access.require_visible_track(connection, track_id, user)
         audio_path = config.library_dir() / row["stored_name"]
         if not audio_path.exists():
             raise HTTPException(status_code=404, detail="arquivo indisponível")
@@ -125,41 +193,37 @@ def create_app() -> FastAPI:
         return FileResponse(audio_path, media_type=media_type)
 
     @app.get("/api/tracks/{track_id}/cover")
-    def track_cover(track_id: int) -> FileResponse:
+    def track_cover(
+        track_id: int, user: CurrentUser = Depends(require_user)
+    ) -> FileResponse:
         with db.connection() as connection:
-            row = connection.execute(
-                "SELECT content_hash FROM tracks WHERE id = ?", (track_id,)
-            ).fetchone()
-        if row is None:
-            raise HTTPException(status_code=404, detail="faixa não encontrada")
-        cover_path = config.library_dir() / f"{row['content_hash']}.cover"
+            row = access.require_visible_track(connection, track_id, user)
+        cover_path = _cover_path(row["content_hash"], row["owner_id"])
         if not cover_path.exists():
             raise HTTPException(status_code=404, detail="sem capa")
         media_type = metadata_reader.guess_media_type(cover_path.read_bytes())
         return FileResponse(cover_path, media_type=media_type)
 
     @app.put("/api/tracks/{track_id}/cover")
-    async def upload_cover(track_id: int, cover: UploadFile = File(...)) -> dict:
+    async def upload_cover(
+        track_id: int,
+        cover: UploadFile = File(...),
+        user: CurrentUser = Depends(require_user),
+    ) -> dict:
         data = await cover.read()
         if metadata_reader.guess_media_type(data) == "application/octet-stream":
             raise HTTPException(status_code=400, detail="imagem inválida")
         with db.connection() as connection:
-            row = connection.execute(
-                "SELECT content_hash FROM tracks WHERE id = ?", (track_id,)
-            ).fetchone()
-        if row is None:
-            raise HTTPException(status_code=404, detail="faixa não encontrada")
-        (config.library_dir() / f"{row['content_hash']}.cover").write_bytes(data)
+            row = access.require_owned_track(connection, track_id, user)
+        _cover_path(row["content_hash"], user.id).write_bytes(data)
         return {"status": "saved"}
 
     @app.delete("/api/unrecognized/{item_id}")
-    def remove_unrecognized(item_id: int) -> dict:
+    def remove_unrecognized(
+        item_id: int, user: CurrentUser = Depends(require_user)
+    ) -> dict:
         with db.connection() as connection:
-            row = connection.execute(
-                "SELECT * FROM unrecognized WHERE id = ?", (item_id,)
-            ).fetchone()
-            if row is None:
-                raise HTTPException(status_code=404, detail="item não encontrado")
+            row = _owned_unrecognized(connection, item_id, user)
             if row["stored_name"]:
                 (config.unrecognized_dir() / row["stored_name"]).unlink(missing_ok=True)
             connection.execute("DELETE FROM unrecognized WHERE id = ?", (item_id,))
@@ -167,20 +231,18 @@ def create_app() -> FastAPI:
         return {"status": "removed"}
 
     @app.post("/api/unrecognized/{item_id}/reprocess")
-    def reprocess_unrecognized(item_id: int) -> dict:
+    def reprocess_unrecognized(
+        item_id: int, user: CurrentUser = Depends(require_user)
+    ) -> dict:
         with db.connection() as connection:
-            row = connection.execute(
-                "SELECT * FROM unrecognized WHERE id = ?", (item_id,)
-            ).fetchone()
-            if row is None:
-                raise HTTPException(status_code=404, detail="item não encontrado")
+            row = _owned_unrecognized(connection, item_id, user)
             if not row["stored_name"]:
                 raise HTTPException(status_code=400, detail="arquivo indisponível")
             stored = config.unrecognized_dir() / row["stored_name"]
             if not stored.exists():
                 raise HTTPException(status_code=400, detail="arquivo indisponível")
             result = importer.import_file(
-                row["filename"], stored.read_bytes(), connection
+                row["filename"], stored.read_bytes(), connection, user.id
             )
             if result["status"] != "unrecognized":
                 stored.unlink(missing_ok=True)
@@ -191,91 +253,202 @@ def create_app() -> FastAPI:
         return result
 
     @app.post("/api/playlists")
-    def create_playlist(payload: dict = Body(...)) -> dict:
+    def create_playlist(
+        payload: dict = Body(...), user: CurrentUser = Depends(require_user)
+    ) -> dict:
         name = (payload.get("name") or "").strip()
         if not name:
             raise HTTPException(status_code=400, detail="nome obrigatório")
+        visibility = payload.get("visibility") or "private"
+        if visibility not in VISIBILITIES:
+            raise HTTPException(status_code=400, detail="visibilidade inválida")
         with db.connection() as connection:
-            row = playlists.create(connection, name)
-        return dict(row)
+            row = playlists.create(connection, name, user.id, visibility)
+        return _playlist_dict(row, [], user, "owner")
 
     @app.post("/api/playlists/random")
-    def random_playlist(payload: dict = Body(default={})) -> dict:
+    def random_playlist(
+        payload: dict = Body(default={}),
+        user: CurrentUser = Depends(require_user),
+    ) -> dict:
         name = (payload.get("name") or "").strip() or "Aleatória"
+        visibility = payload.get("visibility") or "private"
+        if visibility not in VISIBILITIES:
+            raise HTTPException(status_code=400, detail="visibilidade inválida")
         raw_size = payload.get("size")
-        size = int(raw_size) if raw_size else None
+        try:
+            size = int(raw_size) if raw_size else None
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="tamanho inválido")
+        if size is not None and size < 0:
+            raise HTTPException(status_code=400, detail="tamanho inválido")
         artist = payload.get("artist") or None
         fmt = payload.get("format") or None
         with db.connection() as connection:
             ids = playlists.random_track_ids(
-                connection, artist=artist, fmt=fmt, size=size
+                connection, user, artist=artist, fmt=fmt, size=size
             )
-            created = playlists.create(connection, name)
+            created = playlists.create(connection, name, user.id, visibility)
             playlists.add_tracks(connection, created["id"], ids)
             playlist, tracks = playlists.get(connection, created["id"])
-        return _playlist_dict(playlist, tracks)
+        return _playlist_dict(playlist, tracks, user, "owner")
 
     @app.get("/api/playlists")
-    def list_playlists() -> dict:
+    def list_playlists(user: CurrentUser = Depends(require_user)) -> dict:
         with db.connection() as connection:
-            rows = playlists.list_all(connection)
-        return {"playlists": [dict(row) for row in rows]}
+            rows = playlists.list_for_user(connection, user)
+            result = []
+            for row in rows:
+                role = access.playlist_role(connection, row, user)
+                data = dict(row)
+                data.pop("owner_id", None)
+                data["role"] = role
+                data["is_owner"] = role == "owner"
+                result.append(data)
+        return {"playlists": result}
 
     @app.get("/api/playlists/{playlist_id}")
-    def get_playlist(playlist_id: int) -> dict:
+    def get_playlist(
+        playlist_id: int, user: CurrentUser = Depends(require_user)
+    ) -> dict:
         with db.connection() as connection:
+            _, role = access.require_playlist(connection, playlist_id, user)
             playlist, tracks = playlists.get(connection, playlist_id)
-        if playlist is None:
-            raise HTTPException(status_code=404, detail="playlist não encontrada")
-        return _playlist_dict(playlist, tracks)
+        return _playlist_dict(playlist, tracks, user, role)
 
     @app.patch("/api/playlists/{playlist_id}")
-    def rename_playlist(playlist_id: int, payload: dict = Body(...)) -> dict:
-        name = (payload.get("name") or "").strip()
-        if not name:
-            raise HTTPException(status_code=400, detail="nome obrigatório")
+    def update_playlist(
+        playlist_id: int,
+        payload: dict = Body(...),
+        user: CurrentUser = Depends(require_user),
+    ) -> dict:
         with db.connection() as connection:
-            row = playlists.rename(connection, playlist_id, name)
-        if row is None:
-            raise HTTPException(status_code=404, detail="playlist não encontrada")
-        return dict(row)
+            playlist, role = access.require_playlist(connection, playlist_id, user)
+            access.require_playlist_owner(playlist, user)
+            if "visibility" in payload:
+                if payload["visibility"] not in VISIBILITIES:
+                    raise HTTPException(status_code=400, detail="visibilidade inválida")
+                playlist = playlists.set_visibility(
+                    connection, playlist_id, payload["visibility"]
+                )
+            if "name" in payload:
+                name = (payload.get("name") or "").strip()
+                if not name:
+                    raise HTTPException(status_code=400, detail="nome obrigatório")
+                playlist = playlists.rename(connection, playlist_id, name)
+            _, tracks = playlists.get(connection, playlist_id)
+        return _playlist_dict(playlist, tracks, user, role)
 
     @app.delete("/api/playlists/{playlist_id}")
-    def delete_playlist(playlist_id: int) -> dict:
+    def delete_playlist(
+        playlist_id: int, user: CurrentUser = Depends(require_user)
+    ) -> dict:
         with db.connection() as connection:
+            playlist, _ = access.require_playlist(connection, playlist_id, user)
+            access.require_playlist_owner(playlist, user)
             playlists.delete(connection, playlist_id)
         return {"status": "removed"}
 
     @app.post("/api/playlists/{playlist_id}/tracks")
-    def add_playlist_track(playlist_id: int, payload: dict = Body(...)) -> dict:
+    def add_playlist_track(
+        playlist_id: int,
+        payload: dict = Body(...),
+        user: CurrentUser = Depends(require_user),
+    ) -> dict:
         track_id = payload.get("track_id")
         if track_id is None:
             raise HTTPException(status_code=400, detail="track_id obrigatório")
         with db.connection() as connection:
+            access.require_playlist(connection, playlist_id, user)
+            access.require_visible_track(connection, track_id, user)
             playlists.add_track(connection, playlist_id, track_id)
         return {"status": "added"}
 
     @app.delete("/api/playlists/{playlist_id}/tracks/{track_id}")
-    def remove_playlist_track(playlist_id: int, track_id: int) -> dict:
+    def remove_playlist_track(
+        playlist_id: int,
+        track_id: int,
+        user: CurrentUser = Depends(require_user),
+    ) -> dict:
         with db.connection() as connection:
+            access.require_playlist(connection, playlist_id, user)
             playlists.remove_track(connection, playlist_id, track_id)
         return {"status": "removed"}
 
     @app.put("/api/playlists/{playlist_id}/tracks")
-    def reorder_playlist_tracks(playlist_id: int, payload: dict = Body(...)) -> dict:
+    def reorder_playlist_tracks(
+        playlist_id: int,
+        payload: dict = Body(...),
+        user: CurrentUser = Depends(require_user),
+    ) -> dict:
         track_ids = payload.get("track_ids") or []
         with db.connection() as connection:
+            access.require_playlist(connection, playlist_id, user)
             try:
                 playlists.reorder(connection, playlist_id, track_ids)
             except ValueError as error:
                 raise HTTPException(status_code=400, detail=str(error))
         return {"status": "reordered"}
 
+    @app.get("/api/playlists/{playlist_id}/invites")
+    def list_playlist_invites(
+        playlist_id: int, user: CurrentUser = Depends(require_user)
+    ) -> dict:
+        with db.connection() as connection:
+            playlist, _ = access.require_playlist(connection, playlist_id, user)
+            access.require_playlist_owner(playlist, user)
+            rows = playlists.list_invites(connection, playlist_id)
+        return {
+            "invites": [
+                {"email": row["email"], "created_at": row["created_at"]} for row in rows
+            ]
+        }
+
+    @app.post("/api/playlists/{playlist_id}/invites")
+    def add_playlist_invite(
+        playlist_id: int,
+        payload: dict = Body(...),
+        user: CurrentUser = Depends(require_user),
+    ) -> dict:
+        email = (payload.get("email") or "").strip().lower()
+        if "@" not in email:
+            raise HTTPException(status_code=400, detail="e-mail inválido")
+        with db.connection() as connection:
+            playlist, _ = access.require_playlist(connection, playlist_id, user)
+            access.require_playlist_owner(playlist, user)
+            known = connection.execute(
+                "SELECT id, email FROM users WHERE lower(email) = ?", (email,)
+            ).fetchone()
+            if known is None:
+                raise HTTPException(status_code=404, detail="usuário não encontrado")
+            if known["id"] == user.id:
+                raise HTTPException(status_code=400, detail="você já é o dono")
+            row = playlists.add_invite(
+                connection,
+                playlist_id,
+                known["id"],
+                known["email"] or email,
+                user.id,
+            )
+        return {"email": row["email"], "created_at": row["created_at"]}
+
+    @app.delete("/api/playlists/{playlist_id}/invites/{email}")
+    def remove_playlist_invite(
+        playlist_id: int,
+        email: str,
+        user: CurrentUser = Depends(require_user),
+    ) -> dict:
+        with db.connection() as connection:
+            playlist, _ = access.require_playlist(connection, playlist_id, user)
+            access.require_playlist_owner(playlist, user)
+            playlists.remove_invite(connection, playlist_id, email)
+        return {"status": "removed"}
+
     @app.get("/api/player")
-    def get_player() -> dict:
+    def get_player(user: CurrentUser = Depends(require_user)) -> dict:
         with db.connection() as connection:
             row = connection.execute(
-                "SELECT * FROM player_state WHERE id = 1"
+                "SELECT * FROM player_state WHERE user_id = ?", (user.id,)
             ).fetchone()
             if row is None:
                 return {
@@ -284,38 +457,62 @@ def create_app() -> FastAPI:
                     "position": 0.0,
                     "volume": 1.0,
                 }
+            try:
+                saved_queue = json.loads(row["queue"])
+            except (TypeError, ValueError):
+                saved_queue = []
             tracks = []
-            for track_id in json.loads(row["queue"]):
-                track_row = connection.execute(
-                    "SELECT * FROM tracks WHERE id = ?", (track_id,)
-                ).fetchone()
-                if track_row is not None:
-                    tracks.append(_track_dict(track_row))
+            current_index = -1
+            for position, track_id in enumerate(saved_queue):
+                track_row = access.visible_track(connection, track_id, user)
+                if track_row is None:
+                    continue
+                if position == row["current_index"]:
+                    current_index = len(tracks)
+                tracks.append(_track_dict(track_row, user))
         return {
             "queue": tracks,
-            "current_index": row["current_index"],
+            "current_index": current_index,
             "position": row["position"],
             "volume": row["volume"],
         }
 
     @app.put("/api/player")
-    def save_player(payload: dict = Body(...)) -> dict:
-        queue = json.dumps(payload.get("queue") or [])
-        current_index = int(payload.get("current_index", -1))
-        position = float(payload.get("position", 0.0))
-        volume = float(payload.get("volume", 1.0))
+    def save_player(
+        payload: dict = Body(...), user: CurrentUser = Depends(require_user)
+    ) -> dict:
+        try:
+            requested = [int(track_id) for track_id in payload.get("queue") or []]
+            current_index = int(payload.get("current_index", -1))
+            position = float(payload.get("position", 0.0))
+            volume = float(payload.get("volume", 1.0))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="estado do player inválido")
         with db.connection() as connection:
+            queue = []
+            remapped_index = -1
+            for index, track_id in enumerate(requested):
+                if access.visible_track(connection, track_id, user) is None:
+                    continue
+                if index == current_index:
+                    remapped_index = len(queue)
+                queue.append(track_id)
+            current_index = remapped_index if current_index >= 0 else -1
+            position_value = max(0.0, position)
+            volume = max(0.0, min(1.0, volume))
+            encoded = json.dumps(queue)
             connection.execute(
                 """
-                INSERT INTO player_state (id, queue, current_index, position, volume)
-                VALUES (1, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
+                INSERT INTO player_state
+                    (user_id, queue, current_index, position, volume)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
                     queue = excluded.queue,
                     current_index = excluded.current_index,
                     position = excluded.position,
                     volume = excluded.volume
                 """,
-                (queue, current_index, position, volume),
+                (user.id, encoded, current_index, position_value, volume),
             )
             connection.commit()
         return {"status": "saved"}

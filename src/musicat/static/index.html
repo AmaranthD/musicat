@@ -8,8 +8,14 @@
   </head>
   <body>
     <header class="topbar">
-      <h1 class="brand">Musicat</h1>
-      <p class="tagline">Arraste suas músicas para cá</p>
+      <div class="topbar__identity">
+        <h1 class="brand">Musicat</h1>
+        <p class="tagline">Arraste suas músicas para cá</p>
+      </div>
+      <div class="account" id="account" hidden>
+        <span class="account__email" id="account-email"></span>
+        <button class="account__logout" id="logout">Sair</button>
+      </div>
     </header>
 
     <main class="layout">
@@ -79,6 +85,10 @@
         </div>
         <form class="playlist-new" id="playlist-form">
           <input id="playlist-name" placeholder="Nova playlist…" aria-label="Nome da nova playlist" />
+          <select id="playlist-visibility" class="sort" aria-label="Visibilidade da nova playlist">
+            <option value="private">🔒 Privada</option>
+            <option value="public">🌐 Pública</option>
+          </select>
           <button type="submit">Criar</button>
         </form>
         <form class="playlist-random" id="random-form">
@@ -99,9 +109,34 @@
         <div class="playlist-detail" id="playlist-detail" hidden>
           <div class="playlist-detail__head">
             <span id="playlist-detail-name"></span>
+            <span class="badge" id="playlist-visibility-badge"></span>
             <button id="playlist-play" title="Tocar playlist" aria-label="Tocar playlist">▶</button>
             <button id="playlist-rename" title="Renomear" aria-label="Renomear">✎</button>
+            <button id="playlist-share-toggle" title="Compartilhar" aria-label="Compartilhar">👥</button>
             <button id="playlist-delete" title="Apagar" aria-label="Apagar">🗑</button>
+          </div>
+          <div class="playlist-share" id="playlist-share" hidden>
+            <label class="playlist-share__row">
+              Visibilidade
+              <select id="playlist-visibility-edit" class="sort">
+                <option value="private">🔒 Privada</option>
+                <option value="public">🌐 Pública</option>
+              </select>
+            </label>
+            <form class="invite-form" id="invite-form">
+              <input
+                id="invite-email"
+                type="email"
+                placeholder="E-mail do convidado"
+                aria-label="E-mail do convidado"
+                required
+              />
+              <button type="submit">Convidar</button>
+            </form>
+            <p class="playlist-share__hint">
+              Convidados podem ouvir e editar esta playlist. A conta precisa já ter entrado no Musicat ao menos uma vez.
+            </p>
+            <ul class="invite-list" id="invite-list"></ul>
           </div>
           <ul class="playlist-tracks" id="playlist-tracks"></ul>
         </div>
@@ -111,8 +146,7 @@
     <audio id="audio" preload="metadata"></audio>
 
     <footer class="credit">
-      Gatinhos: <a href="https://pop-shop-packs.itch.io/cats-pixel-asset-pack" target="_blank" rel="noopener">Cats || Pixel Asset Pack</a>
-      por Pop Shop Packs
+      Gatinhos: <a href="https://pixellab.ai" target="_blank" rel="noopener">PixelLab</a>
     </footer>
 
     <div class="dropzone" id="dropzone" hidden>
@@ -130,6 +164,42 @@
 
     <div class="toast" id="toast" hidden></div>
 
+    <div class="auth-gate" id="auth-gate" hidden>
+      <div class="auth-card">
+        <div class="auth-card__brand">🐾 Musicat</div>
+        <p class="auth-card__subtitle">Entre para ouvir suas músicas.</p>
+        <div class="auth-tabs" id="auth-tabs">
+          <button type="button" data-mode="signin" class="is-active">Entrar</button>
+          <button type="button" data-mode="signup">Criar conta</button>
+        </div>
+        <form class="auth-form" id="auth-form">
+          <label id="auth-email-label">
+            E-mail
+            <input id="auth-email" type="email" required autocomplete="email" />
+          </label>
+          <label>
+            Senha
+            <input
+              id="auth-password"
+              type="password"
+              required
+              minlength="6"
+              autocomplete="current-password"
+            />
+          </label>
+          <p class="auth-feedback" id="auth-feedback" hidden></p>
+          <button type="submit" id="auth-submit">Entrar</button>
+        </form>
+        <button type="button" class="auth-link" id="auth-forgot">
+          Esqueci minha senha
+        </button>
+        <p class="auth-hint">
+          Ao criar a conta, confirme o e-mail de confirmação antes de entrar.
+        </p>
+      </div>
+    </div>
+
+    <script src="/static/vendor/supabase.js"></script>
     <script src="/static/js/app.js" type="module"></script>
   </body>
 </html>

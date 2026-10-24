@@ -4,12 +4,41 @@ import pytest
 from fastapi.testclient import TestClient
 
 from musicat.app import create_app
+from musicat.auth import CurrentUser, register_user, require_user
+from musicat.library import db
+
+DEFAULT_USER = CurrentUser(id="user-1", email="one@example.com")
+
+
+def _register(user: CurrentUser) -> None:
+    with db.connection() as connection:
+        register_user(connection, user)
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MUSICAT_DATA_DIR", str(tmp_path / "data"))
+    app = create_app()
+    app.dependency_overrides[require_user] = lambda: DEFAULT_USER
+    _register(DEFAULT_USER)
+    return TestClient(app)
+
+
+@pytest.fixture
+def anonymous_client(tmp_path, monkeypatch):
+    monkeypatch.setenv("MUSICAT_DATA_DIR", str(tmp_path / "data"))
     return TestClient(create_app())
+
+
+@pytest.fixture
+def as_user(client):
+    def _as(user_id: str, email: str):
+        user = CurrentUser(id=user_id, email=email)
+        client.app.dependency_overrides[require_user] = lambda: user
+        _register(user)
+        return user
+
+    return _as
 
 
 @pytest.fixture
