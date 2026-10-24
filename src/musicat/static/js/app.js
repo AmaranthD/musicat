@@ -1,5 +1,5 @@
 import { initStage } from "./stage.js";
-import { apiFetch, initAuth } from "./auth.js";
+import { apiFetch, getAccessToken, initAuth } from "./auth.js";
 
 const audio = document.getElementById("audio");
 const dropzone = document.getElementById("dropzone");
@@ -721,13 +721,20 @@ async function filesFromDataTransfer(dataTransfer) {
   return files;
 }
 
-function uploadFiles(files) {
+async function uploadFiles(files) {
   if (!files.length) return;
+  const token = await getAccessToken();
+  if (!token) {
+    showToast("Sessão expirada. Entre novamente.");
+    return;
+  }
+
   const form = new FormData();
   for (const file of files) form.append("files", file);
 
   const request = new XMLHttpRequest();
   request.open("POST", "/api/import");
+  request.setRequestHeader("Authorization", `Bearer ${token}`);
   progress.hidden = false;
   progressBar.style.width = "0%";
   progressLabel.textContent = `Importando ${files.length} arquivo(s)…`;
@@ -739,6 +746,20 @@ function uploadFiles(files) {
   });
   request.addEventListener("load", () => {
     progress.hidden = true;
+    if (request.status === 401) {
+      showToast("Sessão expirada. Entre novamente.");
+      return;
+    }
+    if (request.status >= 400) {
+      let detail = "Falha ao importar";
+      try {
+        detail = JSON.parse(request.responseText).detail || detail;
+      } catch (error) {
+        /* resposta sem JSON */
+      }
+      showToast(detail);
+      return;
+    }
     let summary = "Importação concluída";
     try {
       const data = JSON.parse(request.responseText);

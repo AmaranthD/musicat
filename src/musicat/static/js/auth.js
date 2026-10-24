@@ -258,6 +258,12 @@ export async function initAuth(handlersInput) {
   });
 }
 
+export async function getAccessToken() {
+  if (!client) return null;
+  const { data } = await client.auth.getSession();
+  return data.session?.access_token || null;
+}
+
 export async function apiFetch(path, options = {}) {
   if (!client) throw new Error("auth não inicializada");
   const { data } = await client.auth.getSession();
